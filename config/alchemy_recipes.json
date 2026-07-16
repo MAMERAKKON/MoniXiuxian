@@ -1,0 +1,844 @@
+[
+  {
+    "id": "recipe_1001",
+    "pill_id": "1001",
+    "name": "一品气血丹",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "血莲子": 1,
+      "甘草": 1
+    },
+    "success_rate": 90,
+    "cost": 150
+  },
+  {
+    "id": "recipe_1002",
+    "pill_id": "1002",
+    "name": "一品培元丹",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "灵草": 1,
+      "党参": 1
+    },
+    "success_rate": 90,
+    "cost": 60
+  },
+  {
+    "id": "recipe_1003",
+    "pill_id": "1003",
+    "name": "一品凝气丹",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "青木根": 1,
+      "黄芪": 1,
+      "灵草": 1
+    },
+    "success_rate": 88,
+    "cost": 100
+  },
+  {
+    "id": "recipe_1004",
+    "pill_id": "1004",
+    "name": "二品回春丹",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "血莲子": 1,
+      "当归": 1,
+      "白芍": 1
+    },
+    "success_rate": 88,
+    "cost": 200
+  },
+  {
+    "id": "recipe_1005",
+    "pill_id": "1005",
+    "name": "二品引气丹",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "灵草": 2,
+      "党参": 1,
+      "黄精": 1
+    },
+    "success_rate": 85,
+    "cost": 150
+  },
+  {
+    "id": "recipe_1006",
+    "pill_id": "1006",
+    "name": "二品壮元丹",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "灵草": 2,
+      "黄芪": 1,
+      "白术": 1
+    },
+    "success_rate": 85,
+    "cost": 150
+  },
+  {
+    "id": "recipe_1007",
+    "pill_id": "1007",
+    "name": "三品回元丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "血参": 1,
+      "赤血莲": 1
+    },
+    "success_rate": 80,
+    "cost": 2500
+  },
+  {
+    "id": "recipe_1008",
+    "pill_id": "1008",
+    "name": "三品聚灵丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "紫芝": 1,
+      "月华草": 1
+    },
+    "success_rate": 80,
+    "cost": 700
+  },
+  {
+    "id": "recipe_1009",
+    "pill_id": "1009",
+    "name": "三品凝神增益丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "天心草": 2,
+      "紫霄芝": 1
+    },
+    "success_rate": 78,
+    "cost": 2000
+  },
+  {
+    "id": "recipe_1010",
+    "pill_id": "1010",
+    "name": "四品玉髓丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "血参": 1,
+      "金刚果": 1,
+      "玉髓花": 1
+    },
+    "success_rate": 78,
+    "cost": 4000
+  },
+  {
+    "id": "recipe_1011",
+    "pill_id": "1011",
+    "name": "四品化灵丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "五色灵芝": 1,
+      "星辰花": 1
+    },
+    "success_rate": 78,
+    "cost": 1300
+  },
+  {
+    "id": "recipe_1012",
+    "pill_id": "1012",
+    "name": "四品破境增益丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "天心草": 2,
+      "龙涎草": 1,
+      "太乙青莲": 1
+    },
+    "success_rate": 75,
+    "cost": 2800
+  },
+  {
+    "id": "recipe_1013",
+    "pill_id": "1013",
+    "name": "五品紫金丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "千年人参": 1,
+      "生命之树叶": 1
+    },
+    "success_rate": 70,
+    "cost": 14000
+  },
+  {
+    "id": "recipe_1014",
+    "pill_id": "1014",
+    "name": "五品凝神丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "九叶灵芝": 1,
+      "星辰神果": 1
+    },
+    "success_rate": 70,
+    "cost": 12000
+  },
+  {
+    "id": "recipe_1015",
+    "pill_id": "1015",
+    "name": "五品渡劫增益丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "天灵果": 1,
+      "五行神芝": 1,
+      "造化神莲": 1
+    },
+    "success_rate": 68,
+    "cost": 27000
+  },
+  {
+    "id": "recipe_1016",
+    "pill_id": "1016",
+    "name": "六品造化丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "凤凰草": 1,
+      "涅槃神花": 1,
+      "生命之树叶": 1
+    },
+    "success_rate": 68,
+    "cost": 29000
+  },
+  {
+    "id": "recipe_1017",
+    "pill_id": "1017",
+    "name": "六品天元丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "天灵果": 1,
+      "星辰神果": 1,
+      "世界树根": 1
+    },
+    "success_rate": 68,
+    "cost": 24000
+  },
+  {
+    "id": "recipe_1018",
+    "pill_id": "1018",
+    "name": "六品破境增益丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "九叶灵芝": 2,
+      "天灵果": 2,
+      "造化神莲": 1,
+      "功德金莲": 1
+    },
+    "success_rate": 65,
+    "cost": 48000
+  },
+  {
+    "id": "recipe_1019",
+    "pill_id": "1019",
+    "name": "七品太乙丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "凤凰草": 2,
+      "涅槃神花": 1,
+      "生命之树叶": 2
+    },
+    "success_rate": 60,
+    "cost": 50000
+  },
+  {
+    "id": "recipe_1020",
+    "pill_id": "1020",
+    "name": "七品金髓丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "盘古心血草": 1,
+      "永恒神草": 1
+    },
+    "success_rate": 60,
+    "cost": 180000
+  },
+  {
+    "id": "recipe_1021",
+    "pill_id": "1021",
+    "name": "七品化神增益丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "三清道果": 2,
+      "天道之花": 2,
+      "如来舍利花": 1
+    },
+    "success_rate": 58,
+    "cost": 420000
+  },
+  {
+    "id": "recipe_1022",
+    "pill_id": "1022",
+    "name": "八品九转丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "女娲补天石花": 1,
+      "地道之根": 1,
+      "永恒神草": 1
+    },
+    "success_rate": 58,
+    "cost": 320000
+  },
+  {
+    "id": "recipe_1023",
+    "pill_id": "1023",
+    "name": "八品道元丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "三清道果": 1,
+      "命运之树叶": 1,
+      "轮回道莲": 1
+    },
+    "success_rate": 55,
+    "cost": 270000
+  },
+  {
+    "id": "recipe_1024",
+    "pill_id": "1024",
+    "name": "八品破虚增益丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "天道之花": 2,
+      "创世神花": 1,
+      "毁灭道果": 1,
+      "无量道花": 1
+    },
+    "success_rate": 55,
+    "cost": 480000
+  },
+  {
+    "id": "recipe_1025",
+    "pill_id": "1025",
+    "name": "九品还魂丹",
+    "rank": "神品",
+    "level_required": 70,
+    "materials": {
+      "大道本源果": 1,
+      "混元无极莲": 1
+    },
+    "success_rate": 30,
+    "cost": 830000
+  },
+  {
+    "id": "recipe_1026",
+    "pill_id": "1026",
+    "name": "九品成圣丹",
+    "rank": "神品",
+    "level_required": 70,
+    "materials": {
+      "无上道花": 1,
+      "至高神树叶": 1,
+      "终极道果": 1
+    },
+    "success_rate": 30,
+    "cost": 1300000
+  },
+  {
+    "id": "recipe_1027",
+    "pill_id": "1027",
+    "name": "九品破劫增益丹",
+    "rank": "神品",
+    "level_required": 70,
+    "materials": {
+      "至尊道果": 2,
+      "混沌本源莲": 1,
+      "造化至尊果": 1,
+      "永恒道树根": 1
+    },
+    "success_rate": 28,
+    "cost": 2500000
+  },
+  {
+    "id": "recipe_1028",
+    "pill_id": "1028",
+    "name": "大力丸",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "川芎": 1,
+      "防风": 1
+    },
+    "success_rate": 92,
+    "cost": 80
+  },
+  {
+    "id": "recipe_1029",
+    "pill_id": "1029",
+    "name": "辟谷丹",
+    "rank": "凡品",
+    "level_required": 0,
+    "materials": {
+      "青木根": 1,
+      "茯苓": 1
+    },
+    "success_rate": 92,
+    "cost": 70
+  },
+  {
+    "id": "recipe_1030",
+    "pill_id": "1030",
+    "name": "解毒丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "冰魄草": 1,
+      "碧血草": 1
+    },
+    "success_rate": 80,
+    "cost": 1900
+  },
+  {
+    "id": "recipe_1031",
+    "pill_id": "1031",
+    "name": "清心丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "幽魂草": 1,
+      "月华草": 1,
+      "天心草": 1
+    },
+    "success_rate": 78,
+    "cost": 1400
+  },
+  {
+    "id": "recipe_1032",
+    "pill_id": "1032",
+    "name": "血煞丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "魔核碎片": 1,
+      "鬼面花": 1,
+      "赤血莲": 1
+    },
+    "success_rate": 75,
+    "cost": 1400
+  },
+  {
+    "id": "recipe_1033",
+    "pill_id": "1033",
+    "name": "焚天逆命增益丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "火灵芝": 3,
+      "烈阳花": 5,
+      "太阳神花": 1
+    },
+    "success_rate": 65,
+    "cost": 12000
+  },
+  {
+    "id": "recipe_pill_zhujidan",
+    "pill_id": "pill_zhujidan",
+    "name": "筑基丹",
+    "rank": "灵品",
+    "level_required": 10,
+    "materials": {
+      "千年人参": 1,
+      "紫芝": 2,
+      "金刚果": 1
+    },
+    "success_rate": 75,
+    "cost": 2900
+  },
+  {
+    "id": "recipe_pill_guji_zhongqi",
+    "pill_id": "pill_guji_zhongqi",
+    "name": "固基丹·中",
+    "rank": "灵品",
+    "level_required": 10,
+    "materials": {
+      "千年人参": 1,
+      "金刚果": 2,
+      "金刚藤": 1
+    },
+    "success_rate": 75,
+    "cost": 4100
+  },
+  {
+    "id": "recipe_pill_guji_houqi",
+    "pill_id": "pill_guji_houqi",
+    "name": "固基丹·后",
+    "rank": "灵品",
+    "level_required": 10,
+    "materials": {
+      "千年人参": 2,
+      "金刚果": 2,
+      "金刚藤": 2
+    },
+    "success_rate": 72,
+    "cost": 6100
+  },
+  {
+    "id": "recipe_pill_jiedandan",
+    "pill_id": "pill_jiedandan",
+    "name": "结丹丹",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "千年人参": 2,
+      "五色灵芝": 1,
+      "太乙青莲": 1
+    },
+    "success_rate": 75,
+    "cost": 4700
+  },
+  {
+    "id": "recipe_pill_wendan_zhongqi",
+    "pill_id": "pill_wendan_zhongqi",
+    "name": "温丹丹·中",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "千年人参": 3,
+      "火灵芝": 2,
+      "烈阳花": 2
+    },
+    "success_rate": 72,
+    "cost": 7200
+  },
+  {
+    "id": "recipe_pill_wendan_houqi",
+    "pill_id": "pill_wendan_houqi",
+    "name": "温丹丹·后",
+    "rank": "珍品",
+    "level_required": 20,
+    "materials": {
+      "千年人参": 5,
+      "火灵芝": 3,
+      "烈阳花": 3,
+      "朱雀羽草": 1
+    },
+    "success_rate": 70,
+    "cost": 13000
+  },
+  {
+    "id": "recipe_pill_ningyingdan",
+    "pill_id": "pill_ningyingdan",
+    "name": "凝婴丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "九叶灵芝": 2,
+      "千年人参": 3,
+      "生命之树叶": 1
+    },
+    "success_rate": 68,
+    "cost": 30000
+  },
+  {
+    "id": "recipe_pill_yangying_zhongqi",
+    "pill_id": "pill_yangying_zhongqi",
+    "name": "养婴丹·中",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "九叶灵芝": 3,
+      "天灵果": 1,
+      "阴阳合欢花": 2
+    },
+    "success_rate": 65,
+    "cost": 47000
+  },
+  {
+    "id": "recipe_pill_yangying_houqi",
+    "pill_id": "pill_yangying_houqi",
+    "name": "养婴丹·后",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "九叶灵芝": 5,
+      "天灵果": 2,
+      "阴阳合欢花": 3,
+      "造化神莲": 1
+    },
+    "success_rate": 62,
+    "cost": 93000
+  },
+  {
+    "id": "recipe_pill_huashendan",
+    "pill_id": "pill_huashendan",
+    "name": "化神丹",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "天灵果": 3,
+      "九叶灵芝": 3,
+      "五行神芝": 2,
+      "世界树根": 1
+    },
+    "success_rate": 60,
+    "cost": 83000
+  },
+  {
+    "id": "recipe_pill_wenshen_zhongqi",
+    "pill_id": "pill_wenshen_zhongqi",
+    "name": "温神丹·中",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "天灵果": 5,
+      "九叶灵芝": 5,
+      "太阳神花": 2,
+      "太阴神草": 2
+    },
+    "success_rate": 58,
+    "cost": 130000
+  },
+  {
+    "id": "recipe_pill_wenshen_houqi",
+    "pill_id": "pill_wenshen_houqi",
+    "name": "温神丹·后",
+    "rank": "圣品",
+    "level_required": 30,
+    "materials": {
+      "天灵果": 8,
+      "九叶灵芝": 8,
+      "太阳神花": 3,
+      "太阴神草": 3,
+      "五行神芝": 2
+    },
+    "success_rate": 55,
+    "cost": 210000
+  },
+  {
+    "id": "recipe_pill_lianxudan",
+    "pill_id": "pill_lianxudan",
+    "name": "炼虚丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "先天五行果": 1,
+      "混沌神莲子": 1,
+      "天道之花": 1
+    },
+    "success_rate": 55,
+    "cost": 240000
+  },
+  {
+    "id": "recipe_pill_poxu_zhongqi",
+    "pill_id": "pill_poxu_zhongqi",
+    "name": "破虚丹·中",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "先天五行果": 2,
+      "混沌神莲子": 1,
+      "天道之花": 2,
+      "地道之根": 1
+    },
+    "success_rate": 52,
+    "cost": 490000
+  },
+  {
+    "id": "recipe_pill_poxu_houqi",
+    "pill_id": "pill_poxu_houqi",
+    "name": "破虚丹·后",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "先天五行果": 3,
+      "混沌神莲子": 2,
+      "天道之花": 3,
+      "地道之根": 2,
+      "人道之果": 1
+    },
+    "success_rate": 50,
+    "cost": 900000
+  },
+  {
+    "id": "recipe_pill_hetidan",
+    "pill_id": "pill_hetidan",
+    "name": "合体丹",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "鸿蒙紫气草": 1,
+      "盘古心血草": 1,
+      "轮回道莲": 1,
+      "创世神花": 1
+    },
+    "success_rate": 48,
+    "cost": 360000
+  },
+  {
+    "id": "recipe_pill_ronghe_zhongqi",
+    "pill_id": "pill_ronghe_zhongqi",
+    "name": "融合丹·中",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "鸿蒙紫气草": 2,
+      "盘古心血草": 1,
+      "轮回道莲": 2,
+      "创世神花": 2,
+      "命运之树叶": 1
+    },
+    "success_rate": 45,
+    "cost": 740000
+  },
+  {
+    "id": "recipe_pill_ronghe_houqi",
+    "pill_id": "pill_ronghe_houqi",
+    "name": "融合丹·后",
+    "rank": "帝品",
+    "level_required": 40,
+    "materials": {
+      "鸿蒙紫气草": 3,
+      "盘古心血草": 2,
+      "轮回道莲": 3,
+      "创世神花": 3,
+      "命运之树叶": 2,
+      "永恒神草": 1
+    },
+    "success_rate": 42,
+    "cost": 1400000
+  },
+  {
+    "id": "recipe_pill_dachengdan",
+    "pill_id": "pill_dachengdan",
+    "name": "大乘丹",
+    "rank": "道品",
+    "level_required": 50,
+    "materials": {
+      "大道本源果": 1,
+      "混元无极莲": 1,
+      "太极阴阳果": 1
+    },
+    "success_rate": 48,
+    "cost": 990000
+  },
+  {
+    "id": "recipe_pill_wudao_zhongqi",
+    "pill_id": "pill_wudao_zhongqi",
+    "name": "悟道丹·中",
+    "rank": "道品",
+    "level_required": 50,
+    "materials": {
+      "大道本源果": 2,
+      "混元无极莲": 1,
+      "太极阴阳果": 2,
+      "无上道花": 1
+    },
+    "success_rate": 45,
+    "cost": 2100000
+  },
+  {
+    "id": "recipe_pill_wudao_houqi",
+    "pill_id": "pill_wudao_houqi",
+    "name": "悟道丹·后",
+    "rank": "道品",
+    "level_required": 50,
+    "materials": {
+      "大道本源果": 3,
+      "混元无极莲": 2,
+      "太极阴阳果": 3,
+      "无上道花": 2,
+      "至高神树叶": 1
+    },
+    "success_rate": 42,
+    "cost": 3900000
+  },
+  {
+    "id": "recipe_pill_dujiedan",
+    "pill_id": "pill_dujiedan",
+    "name": "渡劫丹",
+    "rank": "道品",
+    "level_required": 50,
+    "materials": {
+      "终极道果": 1,
+      "超脱神莲": 1,
+      "永恒道树根": 1,
+      "无限神花": 1,
+      "至尊道果": 1
+    },
+    "success_rate": 48,
+    "cost": 2300000
+  },
+  {
+    "id": "recipe_pill_dixiandan",
+    "pill_id": "pill_dixiandan",
+    "name": "地仙丹",
+    "rank": "仙品",
+    "level_required": 60,
+    "materials": {
+      "仙界神药": 1,
+      "九天仙莲": 1,
+      "紫霄仙果": 1,
+      "太上仙草": 1
+    },
+    "success_rate": 40,
+    "cost": 4900000
+  },
+  {
+    "id": "recipe_pill_tianxiandan",
+    "pill_id": "pill_tianxiandan",
+    "name": "天仙丹",
+    "rank": "仙品",
+    "level_required": 60,
+    "materials": {
+      "仙界神药": 2,
+      "九天仙莲": 2,
+      "紫霄仙果": 2,
+      "太上仙草": 2,
+      "瑶池仙桃": 1,
+      "昆仑仙芝": 1
+    },
+    "success_rate": 35,
+    "cost": 13000000
+  },
+  {
+    "id": "recipe_pill_daluojinxiandan",
+    "pill_id": "pill_daluojinxiandan",
+    "name": "大罗金仙丹",
+    "rank": "神品",
+    "level_required": 70,
+    "materials": {
+      "混沌至尊神药": 1,
+      "盘古精血草": 1,
+      "鸿钧道果": 1
+    },
+    "success_rate": 28,
+    "cost": 14000000
+  },
+  {
+    "id": "recipe_pill_hunyuandan",
+    "pill_id": "pill_hunyuandan",
+    "name": "混元丹",
+    "rank": "神品",
+    "level_required": 70,
+    "materials": {
+      "混沌至尊神药": 2,
+      "盘古精血草": 2,
+      "鸿钧道果": 1,
+      "创世神莲": 1,
+      "永恒至尊果": 1
+    },
+    "success_rate": 25,
+    "cost": 33000000
+  }
+]

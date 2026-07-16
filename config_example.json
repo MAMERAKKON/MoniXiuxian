@@ -1,0 +1,84 @@
+{
+  "comment": "修仙插件 V3 配置示例",
+  "comment_note": "将此文件复制为 config.json 并根据需要修改",
+
+  "VALUES": {
+    "INITIAL_GOLD": 1000,
+    "BASE_EXP_PER_MINUTE": 10,
+    "CHECK_IN_GOLD_MIN": 5,
+    "CHECK_IN_GOLD_MAX": 500,
+    "BREAKTHROUGH_DEATH_PROBABILITY": [0.01, 0.1],
+    "PAVILION_REFRESH_HOURS": 6,
+    "PAVILION_PILL_COUNT": 10,
+    "PAVILION_WEAPON_COUNT": 10,
+    "PAVILION_TREASURE_COUNT": 15,
+    "SHOP_DISCOUNT_MIN": 0.8,
+    "SHOP_DISCOUNT_MAX": 1.2,
+    "SHOP_STOCK_DIVISOR": 100
+  },
+
+  "ACCESS_CONTROL": {
+    "WHITELIST_GROUPS": [],
+    "SHOP_MANAGERS": [],
+    "BOSS_ADMINS": [],
+    "ADMINS": []
+  },
+
+  "ACCESS_CONTROL_DESCRIPTION": {
+    "WHITELIST_GROUPS": "白名单群组列表（群组ID），留空则不限制",
+    "SHOP_MANAGERS": "商店管理员列表（用户ID），可以管理商店",
+    "BOSS_ADMINS": "Boss管理员列表（用户ID），可以生成世界Boss",
+    "ADMINS": "全局管理员列表（用户ID），可以使用所有管理员命令"
+  },
+
+  "JSON_STORAGE": {
+    "comment": "JSON 存储配置",
+    "DATA_DIR": "data/json",
+    "ENABLE_CACHE": true,
+    "LOCK_TIMEOUT": 30,
+    "MAX_BACKUPS": 3
+  },
+
+  "JSON_STORAGE_DESCRIPTION": {
+    "DATA_DIR": "JSON 文件存储目录路径（相对于插件根目录）",
+    "ENABLE_CACHE": "是否启用内存缓存（true/false），启用后可提高查询性能",
+    "LOCK_TIMEOUT": "文件锁超时时间（秒），防止并发写入冲突",
+    "MAX_BACKUPS": "最大备份文件数量，用于数据恢复"
+  },
+
+  "SPIRIT_ROOT_SPEEDS": {
+    "PSEUDO_ROOT_SPEED": 0.5,
+    "QUAD_ROOT_SPEED": 0.6,
+    "TRI_ROOT_SPEED": 0.75,
+    "DUAL_ROOT_SPEED": 0.9,
+    "WUXING_ROOT_SPEED": 1.0,
+    "THUNDER_ROOT_SPEED": 1.3,
+    "ICE_ROOT_SPEED": 1.25,
+    "WIND_ROOT_SPEED": 1.25,
+    "DARK_ROOT_SPEED": 1.3,
+    "LIGHT_ROOT_SPEED": 1.3,
+    "HEAVENLY_ROOT_SPEED": 1.5,
+    "YIN_YANG_ROOT_SPEED": 1.8,
+    "FUSION_ROOT_SPEED": 1.8,
+    "CHAOS_ROOT_SPEED": 2.0,
+    "INNATE_BODY_SPEED": 2.5,
+    "DIVINE_BODY_SPEED": 2.3
+  },
+
+  "SPIRIT_ROOT_WEIGHTS": {
+    "PSEUDO_ROOT_WEIGHT": 1,
+    "QUAD_ROOT_WEIGHT": 150,
+    "TRI_ROOT_WEIGHT": 200,
+    "DUAL_ROOT_WEIGHT": 120,
+    "WUXING_ROOT_WEIGHT": 80,
+    "VARIANT_ROOT_WEIGHT": 30,
+    "HEAVENLY_ROOT_WEIGHT": 5,
+    "LEGENDARY_ROOT_WEIGHT": 2,
+    "MYTHIC_ROOT_WEIGHT": 1,
+    "DIVINE_BODY_WEIGHT": 1
+  },
+
+  "FILES": {
+    "DATABASE_FILE": "astrbot_plugin_monixiuxianv3.db"
+  }
+}

@@ -1,0 +1,387 @@
+{
+  "difficulties": {
+    "easy": {
+      "name": "F级",
+      "stone_scale": 1.0,
+      "exp_scale": 1.0,
+      "min_level": 0
+    },
+    "normal": {
+      "name": "E级",
+      "stone_scale": 1.2,
+      "exp_scale": 1.2,
+      "min_level": 3
+    },
+    "hard": {
+      "name": "D级",
+      "stone_scale": 1.45,
+      "exp_scale": 1.5,
+      "min_level": 7
+    },
+    "elite": {
+      "name": "C级",
+      "stone_scale": 1.8,
+      "exp_scale": 1.9,
+      "min_level": 12
+    }
+  },
+  "templates": [
+    {
+      "id": 301,
+      "name": "巡山情报",
+      "difficulty": "easy",
+      "category": "巡山",
+      "progress_tags": ["adventure_scout"],
+      "min_target": 3,
+      "max_target": 6,
+      "time_limit": 16200,
+      "reward": { "stone": 260, "exp": 2200 },
+      "item_table": "scout",
+      "description": "巡查宗门周边并汇报妖兽动向。",
+      "weight": 35
+    },
+    {
+      "id": 302,
+      "name": "灵药补给",
+      "difficulty": "normal",
+      "category": "采集",
+      "progress_tags": ["adventure_roam"],
+      "min_target": 4,
+      "max_target": 8,
+      "time_limit": 43200,
+      "reward": { "stone": 360, "exp": 3200 },
+      "item_table": "gather",
+      "description": "云游各地采摘灵草，补足丹阁库存。",
+      "weight": 30
+    },
+    {
+      "id": 303,
+      "name": "妖兽清剿",
+      "difficulty": "hard",
+      "category": "猎杀",
+      "progress_tags": ["adventure_hunt", "adventure_peril"],
+      "min_target": 3,
+      "max_target": 6,
+      "time_limit": 48600,
+      "reward": { "stone": 520, "exp": 5200 },
+      "item_table": "hunt",
+      "description": "对指定妖兽巢穴实施围剿，确保附近居民安全。",
+      "weight": 30
+    },
+    {
+      "id": 304,
+      "name": "秘境侦察",
+      "difficulty": "normal",
+      "category": "探索",
+      "progress_tags": ["rift_dark_forest"],
+      "min_target": 2,
+      "max_target": 4,
+      "time_limit": 21600,
+      "reward": { "stone": 480, "exp": 4800 },
+      "item_table": "explore",
+      "description": "深入秘境探查地势，为大部队绘制安全路线。",
+      "weight": 25
+    },
+    {
+      "id": 305,
+      "name": "护送商旅",
+      "difficulty": "hard",
+      "category": "护送",
+      "progress_tags": ["adventure_roam", "adventure_hunt"],
+      "min_target": 2,
+      "max_target": 5,
+      "time_limit": 27000,
+      "reward": { "stone": 600, "exp": 5600 },
+      "item_table": "supply",
+      "description": "护送商队穿越险地，保证补给入城。",
+      "weight": 20
+    },
+    {
+      "id": 306,
+      "name": "禁地余波",
+      "difficulty": "elite",
+      "category": "镇压",
+      "progress_tags": ["rift_fire_land", "adventure_peril"],
+      "min_target": 2,
+      "max_target": 4,
+      "time_limit": 43200,
+      "reward": { "stone": 900, "exp": 7800 },
+      "item_table": "mystic",
+      "description": "封印上古禁地残余煞气，仅限身经百战者参与。",
+      "weight": 15
+    },
+    {
+      "id": 307,
+      "name": "矿脉开采",
+      "difficulty": "easy",
+      "category": "采集",
+      "progress_tags": ["adventure_scout"],
+      "min_target": 5,
+      "max_target": 10,
+      "time_limit": 21600,
+      "reward": { "stone": 300, "exp": 2500 },
+      "item_table": "mining",
+      "description": "前往灵石矿脉开采矿石，为宗门积累资源。",
+      "weight": 32
+    },
+    {
+      "id": 308,
+      "name": "灵兽驯养",
+      "difficulty": "normal",
+      "category": "驯兽",
+      "progress_tags": ["adventure_roam"],
+      "min_target": 3,
+      "max_target": 5,
+      "time_limit": 32400,
+      "reward": { "stone": 420, "exp": 3800 },
+      "item_table": "beast",
+      "description": "捕捉并驯服低阶灵兽，充实宗门灵兽园。",
+      "weight": 28
+    },
+    {
+      "id": 309,
+      "name": "古迹探秘",
+      "difficulty": "hard",
+      "category": "探索",
+      "progress_tags": ["rift_ice_cave"],
+      "min_target": 2,
+      "max_target": 3,
+      "time_limit": 37800,
+      "reward": { "stone": 680, "exp": 6200 },
+      "item_table": "ruin",
+      "description": "探索上古遗迹，寻找失落的修仙传承。",
+      "weight": 22
+    },
+    {
+      "id": 310,
+      "name": "灵脉修复",
+      "difficulty": "normal",
+      "category": "修复",
+      "progress_tags": ["adventure_scout"],
+      "min_target": 4,
+      "max_target": 7,
+      "time_limit": 27000,
+      "reward": { "stone": 400, "exp": 3500 },
+      "item_table": "repair",
+      "description": "修复受损的地脉节点，恢复灵气流通。",
+      "weight": 26
+    },
+    {
+      "id": 311,
+      "name": "邪修追缉",
+      "difficulty": "elite",
+      "category": "猎杀",
+      "progress_tags": ["adventure_hunt", "adventure_peril"],
+      "min_target": 1,
+      "max_target": 3,
+      "time_limit": 54000,
+      "reward": { "stone": 1100, "exp": 9500 },
+      "item_table": "evil_hunt",
+      "description": "追捕作恶多端的邪修，维护修仙界秩序。",
+      "weight": 12
+    },
+    {
+      "id": 312,
+      "name": "灵田耕作",
+      "difficulty": "easy",
+      "category": "种植",
+      "progress_tags": ["adventure_scout"],
+      "min_target": 6,
+      "max_target": 12,
+      "time_limit": 32400,
+      "reward": { "stone": 280, "exp": 2300 },
+      "item_table": "farm",
+      "description": "照料宗门灵田，培育灵药幼苗。",
+      "weight": 33
+    },
+    {
+      "id": 313,
+      "name": "法阵维护",
+      "difficulty": "normal",
+      "category": "修复",
+      "progress_tags": ["adventure_scout"],
+      "min_target": 3,
+      "max_target": 6,
+      "time_limit": 24300,
+      "reward": { "stone": 440, "exp": 3600 },
+      "item_table": "formation",
+      "description": "检修宗门护山大阵，确保防御无虞。",
+      "weight": 27
+    },
+    {
+      "id": 314,
+      "name": "灵兽狩猎",
+      "difficulty": "hard",
+      "category": "猎杀",
+      "progress_tags": ["adventure_hunt"],
+      "min_target": 4,
+      "max_target": 7,
+      "time_limit": 40500,
+      "reward": { "stone": 580, "exp": 5800 },
+      "item_table": "beast_hunt",
+      "description": "猎杀指定灵兽，获取珍贵材料。",
+      "weight": 24
+    },
+    {
+      "id": 315,
+      "name": "宝物鉴定",
+      "difficulty": "easy",
+      "category": "鉴定",
+      "progress_tags": ["adventure_scout"],
+      "min_target": 5,
+      "max_target": 8,
+      "time_limit": 18900,
+      "reward": { "stone": 320, "exp": 2600 },
+      "item_table": "identify",
+      "description": "协助器阁鉴定收购的法器真伪。",
+      "weight": 31
+    },
+    {
+      "id": 316,
+      "name": "魔窟封印",
+      "difficulty": "elite",
+      "category": "镇压",
+      "progress_tags": ["rift_fire_land"],
+      "min_target": 1,
+      "max_target": 2,
+      "time_limit": 64800,
+      "reward": { "stone": 1300, "exp": 11000 },
+      "item_table": "seal",
+      "description": "加固魔窟封印，防止魔气外泄。",
+      "weight": 10
+    },
+    {
+      "id": 317,
+      "name": "灵泉净化",
+      "difficulty": "normal",
+      "category": "净化",
+      "progress_tags": ["adventure_roam"],
+      "min_target": 3,
+      "max_target": 5,
+      "time_limit": 29700,
+      "reward": { "stone": 460, "exp": 4000 },
+      "item_table": "purify",
+      "description": "净化被污染的灵泉，恢复其灵气产出。",
+      "weight": 25
+    },
+    {
+      "id": 318,
+      "name": "宗门巡防",
+      "difficulty": "easy",
+      "category": "巡山",
+      "progress_tags": ["adventure_scout"],
+      "min_target": 4,
+      "max_target": 8,
+      "time_limit": 21600,
+      "reward": { "stone": 240, "exp": 2000 },
+      "item_table": "patrol",
+      "description": "巡视宗门各处，排查安全隐患。",
+      "weight": 34
+    }
+  ],
+  "item_tables": {
+    "scout": [
+      { "name": "灵草", "weight": 45, "min": 2, "max": 4 },
+      { "name": "灵石碎片", "weight": 35, "min": 3, "max": 6 },
+      { "name": "精铁", "weight": 20, "min": 1, "max": 2 }
+    ],
+    "gather": [
+      { "name": "灵草", "weight": 45, "min": 3, "max": 6 },
+      { "name": "玄铁", "weight": 30, "min": 1, "max": 3 },
+      { "name": "天材地宝", "weight": 25, "min": 1, "max": 1 }
+    ],
+    "hunt": [
+      { "name": "灵兽毛皮", "weight": 40, "min": 1, "max": 3 },
+      { "name": "妖兽精血", "weight": 30, "min": 1, "max": 2 },
+      { "name": "灵兽内丹", "weight": 20, "min": 1, "max": 1 },
+      { "name": "玄铁", "weight": 10, "min": 1, "max": 3 }
+    ],
+    "explore": [
+      { "name": "秘境精华", "weight": 35, "min": 1, "max": 2 },
+      { "name": "功法残页", "weight": 30, "min": 1, "max": 1 },
+      { "name": "星辰石", "weight": 20, "min": 1, "max": 2 },
+      { "name": "灵草", "weight": 15, "min": 2, "max": 4 }
+    ],
+    "supply": [
+      { "name": "灵石碎片", "weight": 45, "min": 4, "max": 8 },
+      { "name": "精铁", "weight": 30, "min": 2, "max": 4 },
+      { "name": "玄铁", "weight": 25, "min": 1, "max": 2 }
+    ],
+    "mystic": [
+      { "name": "功法残页", "weight": 35, "min": 1, "max": 1 },
+      { "name": "星辰石", "weight": 30, "min": 1, "max": 2 },
+      { "name": "秘境精华", "weight": 20, "min": 1, "max": 2 },
+      { "name": "天材地宝", "weight": 15, "min": 1, "max": 1 }
+    ],
+    "mining": [
+      { "name": "灵石碎片", "weight": 50, "min": 5, "max": 10 },
+      { "name": "精铁", "weight": 30, "min": 2, "max": 5 },
+      { "name": "玄铁", "weight": 15, "min": 1, "max": 3 },
+      { "name": "星辰石", "weight": 5, "min": 1, "max": 1 }
+    ],
+    "beast": [
+      { "name": "灵兽蛋", "weight": 35, "min": 1, "max": 2 },
+      { "name": "灵兽毛皮", "weight": 30, "min": 2, "max": 4 },
+      { "name": "妖兽精血", "weight": 25, "min": 1, "max": 2 },
+      { "name": "灵草", "weight": 10, "min": 2, "max": 3 }
+    ],
+    "ruin": [
+      { "name": "功法残页", "weight": 40, "min": 1, "max": 2 },
+      { "name": "古代法器", "weight": 25, "min": 1, "max": 1 },
+      { "name": "秘境精华", "weight": 20, "min": 1, "max": 2 },
+      { "name": "星辰石", "weight": 15, "min": 1, "max": 2 }
+    ],
+    "repair": [
+      { "name": "灵石碎片", "weight": 40, "min": 3, "max": 6 },
+      { "name": "精铁", "weight": 35, "min": 2, "max": 4 },
+      { "name": "灵草", "weight": 25, "min": 2, "max": 4 }
+    ],
+    "evil_hunt": [
+      { "name": "邪修遗物", "weight": 30, "min": 1, "max": 1 },
+      { "name": "功法残页", "weight": 25, "min": 1, "max": 2 },
+      { "name": "灵兽内丹", "weight": 20, "min": 1, "max": 2 },
+      { "name": "星辰石", "weight": 15, "min": 1, "max": 2 },
+      { "name": "天材地宝", "weight": 10, "min": 1, "max": 1 }
+    ],
+    "farm": [
+      { "name": "灵草", "weight": 50, "min": 4, "max": 8 },
+      { "name": "灵药种子", "weight": 30, "min": 2, "max": 4 },
+      { "name": "天材地宝", "weight": 20, "min": 1, "max": 1 }
+    ],
+    "formation": [
+      { "name": "阵法石", "weight": 40, "min": 2, "max": 4 },
+      { "name": "星辰石", "weight": 30, "min": 1, "max": 2 },
+      { "name": "精铁", "weight": 20, "min": 2, "max": 3 },
+      { "name": "灵石碎片", "weight": 10, "min": 3, "max": 5 }
+    ],
+    "patrol": [
+      { "name": "灵石碎片", "weight": 50, "min": 2, "max": 5 },
+      { "name": "灵草", "weight": 35, "min": 2, "max": 3 },
+      { "name": "精铁", "weight": 15, "min": 1, "max": 2 }
+    ],
+    "beast_hunt": [
+      { "name": "灵兽毛皮", "weight": 45, "min": 2, "max": 4 },
+      { "name": "妖兽精血", "weight": 30, "min": 1, "max": 3 },
+      { "name": "灵兽内丹", "weight": 15, "min": 1, "max": 1 },
+      { "name": "玄铁", "weight": 10, "min": 1, "max": 2 }
+    ],
+    "identify": [
+      { "name": "灵石碎片", "weight": 40, "min": 3, "max": 6 },
+      { "name": "精铁", "weight": 30, "min": 2, "max": 4 },
+      { "name": "玄铁", "weight": 20, "min": 1, "max": 2 },
+      { "name": "灵草", "weight": 10, "min": 2, "max": 3 }
+    ],
+    "seal": [
+      { "name": "封印符", "weight": 35, "min": 1, "max": 2 },
+      { "name": "星辰石", "weight": 30, "min": 1, "max": 2 },
+      { "name": "功法残页", "weight": 20, "min": 1, "max": 1 },
+      { "name": "天材地宝", "weight": 15, "min": 1, "max": 1 }
+    ],
+    "purify": [
+      { "name": "灵泉水", "weight": 40, "min": 2, "max": 4 },
+      { "name": "灵草", "weight": 35, "min": 3, "max": 5 },
+      { "name": "星辰石", "weight": 15, "min": 1, "max": 1 },
+      { "name": "天材地宝", "weight": 10, "min": 1, "max": 1 }
+    ]
+  }
+}
