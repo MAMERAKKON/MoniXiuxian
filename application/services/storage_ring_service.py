@@ -1,0 +1,699 @@
+"""储物戒业务服务"""
+import json
+from typing import Tuple, Dict, List, Optional
+from pathlib import Path
+
+from ...core.config import ConfigManager
+from ...core.exceptions import XiuxianException
+from ...infrastructure.repositories.storage_ring_repo import StorageRingRepository
+from ...infrastructure.repositories.player_repo import PlayerRepository
+from ...domain.models.item import StorageRing
+
+
+class StorageRingService:
+    """储物戒业务服务"""
+    
+    # 物品分类定义 - 按类型关键词分类
+    ITEM_CATEGORIES = {
+        "丹药": {
+            "keywords": ["丹"],
+            "exclude_keywords": ["内丹"],  # 排除内丹（属于材料）
+            "priority": 1
+        },
+        "材料": {
+            "keywords": ["草", "铁", "石", "沙", "参", "芝", "果", "花", "根", "子", "髓", "核", "粉", "砂",
+                        "皮", "血", "息", "齿轮", "碎片", "精华", "残页", "遗物", "种子", "内丹"],
+            "priority": 2
+        },
+        "法器": {
+            "keywords": ["剑", "刀", "枪", "弓", "幡", "甲", "袍", "铠", "阵"],
+            "priority": 3
+        },
+        "功法": {
+            "keywords": ["功", "诀", "经", "法"],
+            "priority": 4
+        },
+        "储物戒": {
+            "keywords": ["储物戒"],
+            "priority": 5
+        },
+        "其他": {
+            "keywords": [],
+            "priority": 99
+        }
+    }
+    
+    def __init__(
+        self,
+        storage_ring_repo: StorageRingRepository,
+        player_repo: PlayerRepository,
+        config_manager: ConfigManager
+    ):
+        self.storage_ring_repo = storage_ring_repo
+        self.player_repo = player_repo
+        self.config_manager = config_manager
+        
+        # 加载储物戒配置
+        self._load_storage_rings()
+    
+    def _load_storage_rings(self) -> None:
+        """加载储物戒配置"""
+        config_path = self.config_manager.config_dir / "storage_rings.json"
+        if config_path.exists():
+            with open(config_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # 确保加载的是字典格式
+                if isinstance(data, dict):
+                    self.storage_rings = data
+                else:
+                    # 如果是列表格式，转换为字典
+                    self.storage_rings = {}
+                    for item in data:
+                        if isinstance(item, dict) and "name" in item:
+                            self.storage_rings[item["name"]] = item
+        else:
+            # 默认配置
+            self.storage_rings = {
+                "基础储物戒": {
+                    "name": "基础储物戒",
+                    "type": "storage_ring",
+                    "rank": "凡品",
+                    "description": "修士入门必备的储物法器，空间狭小但足够存放常用物品。",
+                    "capacity": 20,
+                    "required_level_index": 0,
+                    "price": 0
+                }
+            }
+    
+    def get_storage_ring_config(self, ring_name: str) -> Optional[Dict]:
+        """获取储物戒配置"""
+        return self.storage_rings.get(ring_name)
+    
+    def get_ring_capacity(self, ring_name: str) -> int:
+        """获取储物戒容量"""
+        config = self.get_storage_ring_config(ring_name)
+        return config.get("capacity", 20) if config else 20
+    
+    def get_used_slots(self, user_id: str) -> int:
+        """获取已使用的格子数（每种物品占1格）"""
+        items = self.storage_ring_repo.get_storage_ring_items(user_id)
+        return len(items)
+    
+    def get_available_slots(self, user_id: str) -> int:
+        """获取可用的格子数"""
+        ring_name = self.storage_ring_repo.get_storage_ring_name(user_id)
+        capacity = self.get_ring_capacity(ring_name)
+        used = self.get_used_slots(user_id)
+        return capacity - used
+    
+    def get_space_warning(self, user_id: str) -> Optional[str]:
+        """获取储物戒空间警告"""
+        available = self.get_available_slots(user_id)
+        ring_name = self.storage_ring_repo.get_storage_ring_name(user_id)
+        capacity = self.get_ring_capacity(ring_name)
+        used = self.get_used_slots(user_id)
+        
+        if available == 0:
+            return f"⚠️ 储物戒已满！({used}/{capacity}格)"
+        elif available <= 2:
+            return f"⚠️ 储物戒空间不足！仅剩{available}格({used}/{capacity}格)"
+        return None
+    
+    def can_store_item(self, item_name: str) -> Tuple[bool, str]:
+        """检查物品是否可以存入储物戒"""
+        # 检查是否为储物戒（储物戒不能存入储物戒）
+        if "储物戒" in item_name or item_name in self.storage_rings:
+            return False, f"【{item_name}】是储物戒，不能存入另一个储物戒"
+        
+        return True, ""
+    
+    def _is_pill(self, item_name: str) -> bool:
+        """检查是否为丹药（已废弃，现在丹药也可以存入储物戒）"""
+        # 简单检查：包含"丹"字的物品
+        return "丹" in item_name
+    
+    def store_item(
+        self,
+        user_id: str,
+        item_name: str,
+        count: int = 1,
+        silent: bool = False
+    ) -> Tuple[bool, str]:
+        """存入物品到储物戒"""
+        # 检查是否可以存入
+        can_store, reason = self.can_store_item(item_name)
+        if not can_store:
+            return False, reason
+        
+        # 获取玩家
+        player = self.player_repo.get_by_id(user_id)
+        if not player:
+            return False, "玩家不存在"
+        
+        # 检查是否需要新格子
+        if item_name not in player.storage_ring_items:
+            available = self.get_available_slots(user_id)
+            if available <= 0:
+                ring_name = player.storage_ring
+                capacity = self.get_ring_capacity(ring_name)
+                return False, f"储物戒已满！({capacity}/{capacity}格)"
+        
+        # 添加物品到player对象
+        if item_name in player.storage_ring_items:
+            player.storage_ring_items[item_name] += count
+        else:
+            player.storage_ring_items[item_name] = count
+        
+        # 保存玩家
+        self.player_repo.save(player)
+        
+        if silent:
+            return True, ""
+        
+        # 生成消息
+        ring_name = player.storage_ring
+        capacity = self.get_ring_capacity(ring_name)
+        used = self.get_used_slots(user_id)
+        
+        msg = f"已将【{item_name}】x{count} 存入储物戒（{used}/{capacity}格）"
+        
+        warning = self.get_space_warning(user_id)
+        if warning:
+            msg += f"\n{warning}"
+        
+        return True, msg
+    
+    def discard_item(
+        self,
+        user_id: str,
+        item_name: str,
+        count: int = 1
+    ) -> Tuple[bool, str]:
+        """丢弃储物戒中的物品"""
+        items = self.storage_ring_repo.get_storage_ring_items(user_id)
+        
+        if item_name not in items:
+            return False, f"储物戒中没有【{item_name}】"
+        
+        current_count = items[item_name]
+        if count > current_count:
+            return False, f"储物戒中【{item_name}】数量不足（当前：{current_count}个）"
+        
+        # 减少数量
+        if count >= current_count:
+            del items[item_name]
+            discard_count = current_count
+        else:
+            items[item_name] = current_count - count
+            discard_count = count
+        
+        self.storage_ring_repo.set_storage_ring_items(user_id, items)
+        
+        ring_name = self.storage_ring_repo.get_storage_ring_name(user_id)
+        capacity = self.get_ring_capacity(ring_name)
+        used = self.get_used_slots(user_id)
+        
+        return True, f"已丢弃【{item_name}】x{discard_count}（{used}/{capacity}格）"
+    
+    def get_item_count(self, user_id: str, item_name: str) -> int:
+        """获取物品数量"""
+        items = self.storage_ring_repo.get_storage_ring_items(user_id)
+        return items.get(item_name, 0)
+    
+    def has_item(self, user_id: str, item_name: str, count: int = 1) -> bool:
+        """检查是否有足够数量的物品"""
+        return self.get_item_count(user_id, item_name) >= count
+    
+    def get_storage_ring_info(self, user_id: str) -> Dict:
+        """获取储物戒完整信息"""
+        ring_name = self.storage_ring_repo.get_storage_ring_name(user_id)
+        ring_config = self.get_storage_ring_config(ring_name) or {}
+        items = self.storage_ring_repo.get_storage_ring_items(user_id)
+        capacity = self.get_ring_capacity(ring_name)
+        used = self.get_used_slots(user_id)
+        
+        return {
+            "name": ring_name,
+            "rank": ring_config.get("rank", "未知"),
+            "description": ring_config.get("description", ""),
+            "capacity": capacity,
+            "used": used,
+            "available": capacity - used,
+            "items": items
+        }
+    
+    def categorize_items(self, items: Dict[str, int]) -> Dict[str, List[Tuple[str, int]]]:
+        """将物品按分类整理（优化版）"""
+        result = {cat: [] for cat in self.ITEM_CATEGORIES.keys()}
+
+        # 优先使用 items.json 的明确类型，避免“大番茄”等
+        # 名称不含“丹”字的丹药被错分到其他类。
+        configured_types = {}
+        items_config = self._load_config("items.json")
+        if isinstance(items_config, dict):
+            configured_types = {
+                data.get("name"): data.get("type")
+                for data in items_config.values()
+                if data.get("name")
+            }
+        
+        for item_name, count in items.items():
+            if configured_types.get(item_name) == "丹药":
+                result["丹药"].append((item_name, count))
+                continue
+
+            categorized = False
+            best_match = None
+            best_priority = 999
+            
+            # 遍历所有分类，找到最佳匹配
+            for category, config in self.ITEM_CATEGORIES.items():
+                if category == "其他":
+                    continue
+                
+                keywords = config["keywords"]
+                exclude_keywords = config.get("exclude_keywords", [])
+                priority = config["priority"]
+                
+                # 检查是否包含排除关键词
+                is_excluded = False
+                for exclude_keyword in exclude_keywords:
+                    if exclude_keyword in item_name:
+                        is_excluded = True
+                        break
+                
+                if is_excluded:
+                    continue
+                
+                # 检查物品名是否包含分类关键词
+                for keyword in keywords:
+                    if keyword in item_name:
+                        # 找到优先级更高的分类（数字越小优先级越高）
+                        if priority < best_priority:
+                            best_match = category
+                            best_priority = priority
+                            categorized = True
+                        break
+            
+            # 将物品添加到最佳匹配的分类
+            if categorized and best_match:
+                result[best_match].append((item_name, count))
+            else:
+                # 未分类的放入"其他"
+                result["其他"].append((item_name, count))
+        
+        # 移除空分类，并按优先级排序
+        sorted_result = {}
+        for category in sorted(self.ITEM_CATEGORIES.keys(), 
+                              key=lambda x: self.ITEM_CATEGORIES[x]["priority"]):
+            if result[category]:
+                sorted_result[category] = result[category]
+        
+        return sorted_result
+    
+    def upgrade_ring(
+        self,
+        user_id: str
+    ) -> Tuple[bool, str]:
+        """升级储物戒（自动升级到下一级）"""
+        # 获取玩家信息
+        player = self.player_repo.get_by_id(user_id)
+        if not player:
+            return False, "玩家不存在"
+        
+        # 获取当前储物戒
+        current_ring = self.storage_ring_repo.get_storage_ring_name(user_id)
+        current_capacity = self.get_ring_capacity(current_ring)
+        
+        # 获取所有储物戒，按容量排序
+        all_rings = self.get_all_storage_rings()
+        
+        # 找到下一级储物戒
+        next_ring = None
+        for ring in all_rings:
+            if ring["capacity"] > current_capacity:
+                next_ring = ring
+                break
+        
+        if not next_ring:
+            return False, f"你的【{current_ring}】已经是最高级储物戒！"
+        
+        # 检查境界要求
+        required_level = next_ring["required_level_index"]
+        if player.level_index < required_level:
+            level_name = self._format_required_level(required_level)
+            return False, (
+                f"境界不足！\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"下一级：【{next_ring['name']}】({next_ring['rank']})\n"
+                f"容量：{next_ring['capacity']}格\n"
+                f"需求境界：{level_name}\n"
+                f"你的境界：{self._format_required_level(player.level_index)}"
+            )
+        
+        # 检查灵石
+        price = next_ring["price"]
+        if player.gold < price:
+            return False, (
+                f"灵石不足！\n"
+                f"━━━━━━━━━━━━━━━\n"
+                f"下一级：【{next_ring['name']}】({next_ring['rank']})\n"
+                f"容量：{next_ring['capacity']}格\n"
+                f"需要：{price:,} 灵石\n"
+                f"当前：{player.gold:,} 灵石\n"
+                f"还差：{price - player.gold:,} 灵石"
+            )
+        
+        # 扣除灵石
+        player.gold -= price
+        self.player_repo.save(player)
+        
+        # 升级储物戒
+        self.storage_ring_repo.set_storage_ring_name(user_id, next_ring["name"])
+        
+        return True, (
+            f"✨ 储物戒升级成功！\n"
+            f"━━━━━━━━━━━━━━━\n"
+            f"【{current_ring}】→【{next_ring['name']}】\n"
+            f"品级：{next_ring['rank']}\n"
+            f"容量：{current_capacity}格 → {next_ring['capacity']}格\n"
+            f"消耗：{price:,} 灵石\n"
+            f"剩余：{player.gold:,} 灵石"
+        )
+    
+    def _format_required_level(self, level_index: int) -> str:
+        """格式化需求境界名称"""
+        level_data = self.config_manager.get_level_data(level_index)
+        if level_data:
+            return level_data.get("level_name", f"境界{level_index}")
+        return f"境界{level_index}"
+    
+    def get_all_storage_rings(self) -> List[Dict]:
+        """获取所有可用的储物戒列表"""
+        rings = []
+        
+        # 确保 storage_rings 是字典
+        if not isinstance(self.storage_rings, dict):
+            return rings
+        
+        for name, config in self.storage_rings.items():
+            # 确保 config 是字典
+            if not isinstance(config, dict):
+                continue
+                
+            rings.append({
+                "name": name,
+                "rank": config.get("rank", ""),
+                "capacity": config.get("capacity", 20),
+                "required_level_index": config.get("required_level_index", 0),
+                "price": config.get("price", 0),
+                "description": config.get("description", "")
+            })
+        rings.sort(key=lambda x: x["capacity"])
+        return rings
+    
+    # ===== 赠予系统 =====
+    
+    def gift_item(
+        self,
+        sender_id: str,
+        sender_name: str,
+        receiver_id: str,
+        item_name: str,
+        count: int
+    ) -> Tuple[bool, str]:
+        """赠予物品（直接转移，无需接收确认）"""
+        
+        # 1. 检查发送者是否存在
+        sender = self.player_repo.get_by_id(sender_id)
+        if not sender:
+            return False, "发送者不存在"
+        
+        # 2. 检查发送者是否有该物品
+        if not self.has_item(sender_id, item_name, count):
+            current = self.get_item_count(sender_id, item_name)
+            if current == 0:
+                return False, f"储物戒中没有【{item_name}】"
+            else:
+                return False, f"储物戒中【{item_name}】数量不足（当前：{current}个）"
+        
+        # 3. 检查接收者是否存在
+        receiver = self.player_repo.get_by_id(receiver_id)
+        if not receiver:
+            return False, f"目标玩家（ID:{receiver_id}）尚未开始修仙"
+        
+        # 4. 获取接收者昵称
+        receiver_name = receiver.nickname if receiver.nickname else receiver_id
+        
+        # 5. 检查接收者储物戒是否有空间（如果是新物品）
+        if item_name not in receiver.storage_ring_items:
+            available = self.get_available_slots(receiver_id)
+            if available <= 0:
+                ring_name = receiver.storage_ring
+                capacity = self.get_ring_capacity(ring_name)
+                return False, f"对方储物戒已满！（{capacity}/{capacity}格）"
+        
+        # 6. 从发送者储物戒中移除物品
+        sender_items = self.storage_ring_repo.get_storage_ring_items(sender_id)
+        current_count = sender_items.get(item_name, 0)
+        
+        if count >= current_count:
+            del sender_items[item_name]
+        else:
+            sender_items[item_name] = current_count - count
+        
+        self.storage_ring_repo.set_storage_ring_items(sender_id, sender_items)
+        
+        # 7. 存入接收者的储物戒（使用仓储直接操作，避免数据不一致）
+        try:
+            receiver_items = self.storage_ring_repo.get_storage_ring_items(receiver_id)
+            receiver_items[item_name] = receiver_items.get(item_name, 0) + count
+            self.storage_ring_repo.set_storage_ring_items(receiver_id, receiver_items)
+        except Exception as e:
+            # 存入失败，物品返还给发送者
+            self.storage_ring_repo.set_storage_ring_items(sender_id, sender_items)
+            return False, f"赠予失败：{str(e)}，物品已返还"
+        
+        return True, (
+            f"✅ 赠予成功！\n"
+            f"【{item_name}】×{count} → {receiver_name}\n"
+            f"物品已直接送达对方储物戒"
+        )
+
+    def get_reference_price(self, item_name: str) -> Optional[int]:
+        """
+        获取物品参考价格
+        
+        Args:
+            item_name: 物品名称
+            
+        Returns:
+            参考价格，如果没有则返回None
+        """
+        # 从丹药配置获取
+        pills_config = self._load_config("pills.json")
+        if pills_config:
+            for pill in pills_config:
+                if pill.get("name") == item_name:
+                    if "price" in pill:
+                        return pill["price"]
+                    if "gold_cost" in pill:
+                        return pill["gold_cost"]
+        
+        # 从武器配置获取
+        weapons_config = self._load_config("weapons.json")
+        if weapons_config:
+            for weapon in weapons_config:
+                if weapon.get("name") == item_name:
+                    if "price" in weapon:
+                        return weapon["price"]
+                    if "gold_cost" in weapon:
+                        return weapon["gold_cost"]
+        
+        # 从通用物品配置获取
+        items_config = self._load_config("items.json")
+        if items_config:
+            if isinstance(items_config, dict):
+                for item_id, item_data in items_config.items():
+                    if item_data.get("name") == item_name:
+                        if "price" in item_data:
+                            return item_data["price"]
+                        if "gold_cost" in item_data:
+                            return item_data["gold_cost"]
+        
+        return None
+    
+    def get_item_details(self, item_name: str) -> Optional[Dict]:
+        """
+        获取物品详细信息
+        
+        Args:
+            item_name: 物品名称
+            
+        Returns:
+            物品详细信息字典，包含name, type, rank, price, description, effects等
+        """
+        # 优先从通用物品配置获取（items.json 百科）
+        items_config = self._load_config("items.json")
+        if isinstance(items_config, dict):
+            for item_id, item_data in items_config.items():
+                if item_data.get("name") == item_name:
+                    return self._build_item_details(item_id, item_data, "items.json")
+
+        # 从丹药配置获取
+        pills_config = self._load_config("pills.json")
+        if pills_config:
+            for pill in pills_config:
+                if pill.get("name") == item_name:
+                    details = self._build_item_details(
+                        pill.get("id", ""), pill, "pills.json"
+                    )
+                    if pill.get("type") == "pill":
+                        details["type"] = "丹药"
+                    return details
+        
+        # 从武器配置获取
+        weapons_config = self._load_config("weapons.json")
+        if weapons_config:
+            for weapon in weapons_config:
+                if weapon.get("name") == item_name:
+                    return self._build_item_details(
+                        weapon.get("id", ""), weapon, "weapons.json"
+                    )
+        
+        return None
+
+    @staticmethod
+    def _build_item_details(item_id: str, data: Dict, source: str) -> Dict:
+        """将不同配置文件中的物品统一为百科详情结构。"""
+        price = data.get("price")
+        if price is None:
+            price = data.get("gold_cost")
+
+        return {
+            "id": str(item_id),
+            "name": data.get("name", "未知物品"),
+            "type": data.get("type", "其他"),
+            "subtype": data.get("subtype"),
+            "rank": data.get("rank"),
+            "price": price,
+            "description": data.get("description", ""),
+            "required_level_index": data.get("required_level_index"),
+            "target_level_index": data.get("target_level_index"),
+            "source": source,
+            "data": data,
+        }
+
+    def search_item_catalog(self, keyword: str, limit: int = 10) -> List[Dict]:
+        """在全部物品配置中模糊搜索，不要求玩家持有。"""
+        keyword = keyword.strip().lower()
+        if not keyword:
+            return []
+
+        results = []
+        seen_names = set()
+
+        def add_result(item_id, data, source):
+            name = str(data.get("name", ""))
+            if keyword in name.lower() and name not in seen_names:
+                seen_names.add(name)
+                results.append(self._build_item_details(item_id, data, source))
+
+        items_config = self._load_config("items.json")
+        if isinstance(items_config, dict):
+            for item_id, item_data in items_config.items():
+                add_result(item_id, item_data, "items.json")
+
+        pills_config = self._load_config("pills.json")
+        if isinstance(pills_config, list):
+            for pill in pills_config:
+                add_result(pill.get("id", ""), pill, "pills.json")
+
+        weapons_config = self._load_config("weapons.json")
+        if isinstance(weapons_config, list):
+            for weapon in weapons_config:
+                add_result(weapon.get("id", ""), weapon, "weapons.json")
+
+        results.sort(key=lambda item: (len(item["name"]), item["name"]))
+        return results[:limit]
+    
+    def format_item_effects(self, data: Dict) -> str:
+        """
+        格式化物品效果
+        
+        Args:
+            data: 物品数据
+            
+        Returns:
+            效果描述字符串
+        """
+        effects = []
+
+        def add_delta(label: str, value, suffix: str = ""):
+            if value is None or value == 0:
+                return
+            sign = "+" if value > 0 else ""
+            effects.append(f"{label}{sign}{value}{suffix}")
+        
+        # 检查各种效果
+        if data.get('effect'):
+            effect_data = data['effect']
+            add_delta("气血", effect_data.get('add_hp'))
+            add_delta("修为", effect_data.get('add_experience'))
+            add_delta("气血上限", effect_data.get('add_max_hp'))
+            add_delta("灵力", effect_data.get('add_spiritual_power'))
+            add_delta("精神力", effect_data.get('add_mental_power'))
+            add_delta("攻击", effect_data.get('add_attack'))
+            add_delta("防御", effect_data.get('add_defense'))
+            add_delta("寿命", effect_data.get('add_lifespan'), "年")
+            add_delta("突破成功率", effect_data.get('breakthrough_rate'), "%")
+
+            breakthrough_bonus = effect_data.get('add_breakthrough_bonus')
+            if breakthrough_bonus:
+                add_delta("突破成功率", breakthrough_bonus * 100, "%")
+            add_delta(
+                "持续免死",
+                effect_data.get('death_immunity_charges'),
+                "次",
+            )
+        
+        # 装备属性
+        add_delta("法伤", data.get('magic_damage'))
+        add_delta("物伤", data.get('physical_damage'))
+        add_delta("法防", data.get('magic_defense'))
+        add_delta("物防", data.get('physical_defense'))
+        add_delta("精神力", data.get('mental_power'))
+        if not data.get('effect'):
+            add_delta("气血上限", data.get('max_hp'))
+        if data.get('exp_multiplier'):
+            add_delta("修炼倍率", int(data['exp_multiplier'] * 100), "%")
+        
+        # 旧版装备效果
+        if data.get('equip_effects'):
+            equip_effects = data['equip_effects']
+            if equip_effects.get('attack'):
+                effects.append(f"攻击+{equip_effects['attack']}")
+            if equip_effects.get('defense'):
+                effects.append(f"防御+{equip_effects['defense']}")
+        
+        return "、".join(effects) if effects else "无"
+    
+    def _load_config(self, filename: str) -> Optional[any]:
+        """
+        加载配置文件
+        
+        Args:
+            filename: 配置文件名
+            
+        Returns:
+            配置数据，加载失败返回None
+        """
+        try:
+            config_path = self.config_manager.config_dir / filename
+            if not config_path.exists():
+                return None
+            
+            with open(config_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return None

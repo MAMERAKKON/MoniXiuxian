@@ -1,0 +1,24 @@
+# AstrBot API (provided by AstrBot)
+# astrbot>=4.0.0
+
+# Database (将被 JSON 存储替代)
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+
+# JSON 存储
+filelock>=3.12.0
+
+# Data validation
+pydantic>=2.0.0
+
+# Dependency injection
+dependency-injector>=4.41.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+hypothesis>=6.92.0
+
+# Utilities
+python-dateutil>=2.8.2
