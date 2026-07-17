@@ -8,6 +8,9 @@ from ...domain.models.impart import ImpartInfo
 
 class ImpartRepository(BaseRepository[ImpartInfo]):
     """传承仓储"""
+
+    COOLDOWN_FILENAME = "impart_cooldowns.json"
+    THEFT_LIMIT_FILENAME = "impart_theft_limits.json"
     
     def __init__(self, storage: JSONStorage):
         """
@@ -51,6 +54,52 @@ class ImpartRepository(BaseRepository[ImpartInfo]):
     def update_impart_info(self, impart_info: ImpartInfo):
         """更新传承信息"""
         self.save(impart_info)
+
+    def get_challenge_cooldown_time(self, user_id: str) -> int:
+        """获取玩家上次真正发起传承挑战的时间。"""
+        data = self.storage.get(self.COOLDOWN_FILENAME, str(user_id)) or {}
+        return int(data.get("last_challenge_time", 0) or 0)
+
+    def set_challenge_cooldown_time(self, user_id: str, timestamp: int) -> None:
+        """记录玩家传承挑战冷却起点。"""
+        self.storage.set(
+            self.COOLDOWN_FILENAME,
+            str(user_id),
+            {"last_challenge_time": int(timestamp)}
+        )
+
+    def clear_challenge_cooldown(self, user_id: str) -> None:
+        """战斗未能建立时撤销预占的冷却。"""
+        user_id = str(user_id)
+        if self.storage.exists(self.COOLDOWN_FILENAME, user_id):
+            self.storage.delete(self.COOLDOWN_FILENAME, user_id)
+
+    def get_daily_theft_losses(self, user_id: str, date_key: str) -> Dict[str, float]:
+        """获取指定玩家当日各属性已经被抽取的实际加成量。"""
+        data = self.storage.get(self.THEFT_LIMIT_FILENAME, str(user_id)) or {}
+        if data.get("date") != date_key:
+            return {}
+        return {
+            str(key): max(0.0, float(value))
+            for key, value in data.get("losses", {}).items()
+        }
+
+    def add_daily_theft_loss(
+        self,
+        user_id: str,
+        date_key: str,
+        prop_key: str,
+        loss: float
+    ) -> float:
+        """累加当日某项传承的实际损失，并返回累计值。"""
+        losses = self.get_daily_theft_losses(user_id, date_key)
+        losses[prop_key] = losses.get(prop_key, 0.0) + max(0.0, float(loss))
+        self.storage.set(
+            self.THEFT_LIMIT_FILENAME,
+            str(user_id),
+            {"date": date_key, "losses": losses}
+        )
+        return losses[prop_key]
     
     def get_ranking(self, limit: int = 10) -> List[tuple]:
         """获取传承排行榜

@@ -1,4 +1,5 @@
 """Boss仓储"""
+import time
 from typing import Optional, Dict, Any
 
 from .base import BaseRepository
@@ -8,6 +9,8 @@ from ...domain.models.boss import Boss
 
 class BossRepository(BaseRepository[Boss]):
     """Boss仓储"""
+
+    SYSTEM_FILENAME = "boss_system.json"
     
     def __init__(self, storage: JSONStorage):
         """
@@ -85,6 +88,33 @@ class BossRepository(BaseRepository[Boss]):
         if data:
             data["status"] = 0
             self.storage.set(self.filename, str(boss_id), data)
+
+    def has_any_boss(self) -> bool:
+        """是否存在过Boss记录。"""
+        return bool(self.storage.load(self.filename))
+
+    def get_next_spawn_time(self) -> int:
+        """获取下一只Boss的预定生成时间。"""
+        data = self.storage.get(self.SYSTEM_FILENAME, "global") or {}
+        value = data.get("next_spawn_time")
+        if not value:
+            return 0
+        if isinstance(value, (int, float)):
+            return int(value)
+        return TimestampConverter.from_iso8601(value) or 0
+
+    def set_next_spawn_time(self, spawn_time: int) -> None:
+        """持久化下一只Boss的预定生成时间。"""
+        self.storage.set(
+            self.SYSTEM_FILENAME,
+            "global",
+            {"next_spawn_time": TimestampConverter.to_iso8601(spawn_time)}
+        )
+
+    def clear_next_spawn_time(self) -> None:
+        """清除已经完成的生成计划。"""
+        if self.storage.exists(self.SYSTEM_FILENAME, "global"):
+            self.storage.delete(self.SYSTEM_FILENAME, "global")
     
     def _to_domain(self, data: Dict[str, Any]) -> Boss:
         """转换为领域模型"""
@@ -98,7 +128,29 @@ class BossRepository(BaseRepository[Boss]):
             defense=data["defense"],
             stone_reward=data["stone_reward"],
             create_time=TimestampConverter.from_iso8601(data["create_time"]),
-            status=data["status"]
+            status=data["status"],
+            boss_type=str(data.get("boss_type", "blood_sea")),
+            damage_type=(
+                data.get("damage_type")
+                if data.get("damage_type") in {"physical", "magic"}
+                else "physical"
+            ),
+            exp_reward=int(data.get("exp_reward", data.get("stone_reward", 0) * 3)),
+            reference_power=int(data.get("reference_power", 0)),
+            target_participants=int(data.get("target_participants", 1)),
+            damage_records={
+                str(user_id): int(damage)
+                for user_id, damage in data.get("damage_records", {}).items()
+            },
+            participant_names={
+                str(user_id): str(name)
+                for user_id, name in data.get("participant_names", {}).items()
+            },
+            last_regen_time=(
+                TimestampConverter.from_iso8601(data.get("last_regen_time"))
+                or int(time.time())
+            ),
+            regen_remainder=float(data.get("regen_remainder", 0.0))
         )
     
     def _to_dict(self, boss: Boss) -> Dict[str, Any]:
@@ -113,5 +165,14 @@ class BossRepository(BaseRepository[Boss]):
             "defense": boss.defense,
             "stone_reward": boss.stone_reward,
             "create_time": TimestampConverter.to_iso8601(boss.create_time),
-            "status": boss.status
+            "status": boss.status,
+            "boss_type": boss.boss_type,
+            "damage_type": boss.damage_type,
+            "exp_reward": boss.exp_reward,
+            "reference_power": boss.reference_power,
+            "target_participants": boss.target_participants,
+            "damage_records": boss.damage_records,
+            "participant_names": boss.participant_names,
+            "last_regen_time": TimestampConverter.to_iso8601(boss.last_regen_time),
+            "regen_remainder": boss.regen_remainder
         }

@@ -72,13 +72,21 @@ class CultivationHandler:
             if result.is_overtime:
                 effective_hours = result.max_minutes // 60
                 exceed_msg = f"\n⚠️ 闭关超过{effective_hours}小时，仅计算前{effective_hours}小时修为"
+
+            equipment_bonus_msg = ""
+            if result.equipment_exp_bonus:
+                bonus_percent = result.equipment_exp_bonus * 100
+                equipment_bonus_msg = (
+                    f"\n📚 装备修炼加成：{bonus_percent:+.0f}%"
+                )
             
             # 格式化输出
             message = (
                 "🌟 道友出关成功！\n"
                 "━━━━━━━━━━━━━━━\n"
                 f"⏱️ 闭关时长：{time_str}\n"
-                f"📈 获得修为：{result.gained_exp:,}{exceed_msg}\n"
+                f"📈 获得修为：{result.gained_exp:,}"
+                f"{equipment_bonus_msg}{exceed_msg}\n"
                 f"💫 当前修为：{player.experience:,}\n"
                 "━━━━━━━━━━━━━━━\n"
                 "道友已回归红尘，可继续修行。"

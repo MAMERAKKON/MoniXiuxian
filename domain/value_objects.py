@@ -41,6 +41,7 @@ class CultivationResult:
     gained_exp: int  # 获得的修为
     is_overtime: bool = False  # 是否超时
     max_minutes: int = 0  # 最大时长
+    equipment_exp_bonus: float = 0.0  # 已装备功法/法器提供的修炼加成
 
 
 @dataclass

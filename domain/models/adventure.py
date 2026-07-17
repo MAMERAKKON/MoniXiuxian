@@ -47,3 +47,6 @@ class AdventureResult:
     event_type: Optional[str]  # 触发的事件类型
     event_description: Optional[str]  # 事件描述
     fatigue_cost: int  # 疲劳消耗
+    attribute_gained: Optional[Dict[str, Any]] = None  # 本世白值奖励
+    event_bonus_progress: int = 0  # 随机事件提供的额外悬赏进度
+    bounty_progress_gained: int = 0  # 本次实际推进的悬赏进度

@@ -53,6 +53,7 @@ class Player:
     weapon: Optional[str] = None
     armor: Optional[str] = None
     main_technique: Optional[str] = None
+    cultivation_technique: Optional[str] = None  # 历练修炼心得独立槽位
     
     # 丹药背包（已废弃，保留用于兼容性）
     pills_inventory: dict = field(default_factory=dict)  # {丹药名称: 数量}

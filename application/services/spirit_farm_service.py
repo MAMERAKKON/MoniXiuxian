@@ -199,7 +199,7 @@ class SpiritFarmService:
         
         # 应用奖励
         if total_exp > 0:
-            self.player_repo.add_experience(user_id, total_exp)
+            total_exp = self.player_repo.add_experience(user_id, total_exp)
         if total_gold > 0:
             self.player_repo.add_gold(user_id, total_gold)
         

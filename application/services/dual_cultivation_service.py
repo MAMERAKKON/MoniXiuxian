@@ -151,11 +151,19 @@ class DualCultivationService:
         total_exp = init_hourly_exp + accept_hourly_exp
         
         # 双方平分总修为
-        exp_gain = total_exp // 2
+        base_exp_gain = total_exp // 2
+        initiator_exp_gain = self.player_repo.calculate_experience_reward(
+            initiator.user_id,
+            base_exp_gain
+        )
+        acceptor_exp_gain = self.player_repo.calculate_experience_reward(
+            acceptor.user_id,
+            base_exp_gain
+        )
         
         # 应用收益
-        initiator.experience += exp_gain
-        acceptor.experience += exp_gain
+        initiator.experience += initiator_exp_gain
+        acceptor.experience += acceptor_exp_gain
         self.player_repo.save(initiator)
         self.player_repo.save(acceptor)
         
@@ -170,7 +178,8 @@ class DualCultivationService:
             f"💕 双修成功！\n"
             f"━━━━━━━━━━━━━━━\n"
             f"与【{request.from_name}】双修\n"
-            f"双方各获得修为：+{exp_gain:,}\n"
+            f"你获得修为：+{acceptor_exp_gain:,}\n"
+            f"对方获得修为：+{initiator_exp_gain:,}\n"
             f"（基于双方闭关1小时修为总和）\n"
             f"━━━━━━━━━━━━━━━\n"
             f"下次双修：24小时后"

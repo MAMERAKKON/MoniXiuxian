@@ -169,6 +169,7 @@ class EquippedItems:
     weapon: Optional[Equipment] = None  # 武器
     armor: Optional[Equipment] = None  # 防具
     main_technique: Optional[Equipment] = None  # 主功法
+    cultivation_technique: Optional[Equipment] = None  # 修炼心得独立槽位
     techniques: list[Equipment] = None  # 副功法列表（最多3个）
     
     def __post_init__(self):
@@ -180,7 +181,12 @@ class EquippedItems:
         """获取所有装备的总属性加成"""
         total = EquipmentStats()
         
-        for equipment in [self.weapon, self.armor, self.main_technique] + self.techniques:
+        for equipment in [
+            self.weapon,
+            self.armor,
+            self.main_technique,
+            self.cultivation_technique,
+        ] + self.techniques:
             if equipment:
                 total.magic_damage += equipment.stats.magic_damage
                 total.physical_damage += equipment.stats.physical_damage
@@ -201,6 +207,10 @@ class EquippedItems:
             "weapon": self.weapon.to_dict() if self.weapon else None,
             "armor": self.armor.to_dict() if self.armor else None,
             "main_technique": self.main_technique.to_dict() if self.main_technique else None,
+            "cultivation_technique": (
+                self.cultivation_technique.to_dict()
+                if self.cultivation_technique else None
+            ),
             "techniques": [t.to_dict() for t in self.techniques],
         }
     
@@ -211,5 +221,9 @@ class EquippedItems:
             weapon=Equipment.from_dict(data["weapon"]) if data.get("weapon") else None,
             armor=Equipment.from_dict(data["armor"]) if data.get("armor") else None,
             main_technique=Equipment.from_dict(data["main_technique"]) if data.get("main_technique") else None,
+            cultivation_technique=(
+                Equipment.from_dict(data["cultivation_technique"])
+                if data.get("cultivation_technique") else None
+            ),
             techniques=[Equipment.from_dict(t) for t in data.get("techniques", [])],
         )

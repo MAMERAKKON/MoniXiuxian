@@ -30,6 +30,8 @@ class AdventureHandler:
                 lines.append(
                     f"· {route['name']} ({route['risk']}风险)"
                     f"\n  - 时长：{duration} 分钟 | 推荐境界 ≥ {route['min_level']}"
+                    f"\n  - 本世白值感悟概率：{route['attribute_chance']}%"
+                    f"\n  - 修炼功法掉落概率：{route['cultivation_drop_chance']}%"
                     f"\n  - 说明：{route['description']}"
                 )
             
@@ -107,6 +109,18 @@ class AdventureHandler:
                 for item in result.items_gained:
                     item_lines.append(f"  · {item['name']} x{item['count']}")
                 lines.append(f"\n📦 获得物品：\n" + "\n".join(item_lines))
+
+            if result.attribute_gained:
+                lines.append(
+                    "\n✨ 历练感悟："
+                    f"{result.attribute_gained['label']} "
+                    f"+{result.attribute_gained['value']:.2f}（已存入本世传承池）"
+                )
+
+            if result.bounty_progress_gained > 0:
+                lines.append(
+                    f"\n📜 悬赏进度：+{result.bounty_progress_gained}"
+                )
             
             # 当前状态
             lines.append("\n━━━━━━━━━━━━━━━")

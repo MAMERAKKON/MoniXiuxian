@@ -2,14 +2,20 @@
 import sys
 from pathlib import Path
 
-# 添加项目根目录到路径
-project_root = Path(__file__).parent.parent
-sys.path.insert(0, str(project_root))
+# Windows 控制台可能仍使用 GBK，显式切换为 UTF-8，避免输出校验符号时报错。
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
+# 添加插件父目录到路径，以当前正式包名导入。
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root.parent))
 
 print(f"项目根目录: {project_root}")
 print(f"Python路径: {sys.path[:3]}")
 
-from xiuxian_v3.application.services.recipe_manager import RecipeManager
+from astrbot_plugin_monixiuxianv3.application.services.recipe_manager import RecipeManager
 
 
 def main():

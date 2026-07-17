@@ -113,6 +113,9 @@ class EquipmentService:
         elif slot == "main_technique":
             old_equipment = equipped_items.main_technique
             equipped_items.main_technique = equipment
+        elif slot == "cultivation_technique":
+            old_equipment = equipped_items.cultivation_technique
+            equipped_items.cultivation_technique = equipment
         elif slot == "technique":
             if len(equipped_items.techniques) >= 3:
                 raise BusinessException("副功法已满，请先卸下一个副功法")
@@ -162,6 +165,12 @@ class EquipmentService:
             elif equipped_items.main_technique and equipped_items.main_technique.name == item_name:
                 unequipped = equipped_items.main_technique
                 equipped_items.main_technique = None
+            elif (
+                equipped_items.cultivation_technique
+                and equipped_items.cultivation_technique.name == item_name
+            ):
+                unequipped = equipped_items.cultivation_technique
+                equipped_items.cultivation_technique = None
             else:
                 # 在副功法中查找
                 for i, technique in enumerate(equipped_items.techniques):
@@ -179,6 +188,9 @@ class EquipmentService:
             elif slot == "main_technique":
                 unequipped = equipped_items.main_technique
                 equipped_items.main_technique = None
+            elif slot == "cultivation_technique":
+                unequipped = equipped_items.cultivation_technique
+                equipped_items.cultivation_technique = None
             elif slot == "technique" and equipped_items.techniques:
                 unequipped = equipped_items.techniques.pop(0)
         
@@ -226,7 +238,9 @@ class EquipmentService:
         
         # 功法类型
         if equipment.type == "功法":
-            # 默认装备为主功法，如果主功法已装备则装备为副功法
+            if equipment.subtype == "修炼心得":
+                return "cultivation_technique"
+            # 普通功法占用唯一主功法槽位。
             return "main_technique"
         
         return None
@@ -281,6 +295,26 @@ class EquipmentService:
                 lines.append(f"  介绍：{desc_short}")
         else:
             lines.append("\n主功法：无")
+
+        # 修炼心得独立槽位
+        if equipped_items.cultivation_technique:
+            technique = equipped_items.cultivation_technique
+            lines.append(
+                f"\n修炼心得：{technique.name}"
+                f"（{technique.rank.value if hasattr(technique.rank, 'value') else technique.rank}）"
+            )
+            stats = self._format_stats(technique.stats)
+            if stats:
+                lines.append(f"  效果：{stats}")
+            if technique.description:
+                desc_short = (
+                    technique.description[:40] + "..."
+                    if len(technique.description) > 40
+                    else technique.description
+                )
+                lines.append(f"  介绍：{desc_short}")
+        else:
+            lines.append("\n修炼心得：无")
         
         # 副功法
         if equipped_items.techniques:

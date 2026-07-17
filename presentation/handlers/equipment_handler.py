@@ -96,6 +96,7 @@ class EquipmentHandler:
         - 卸下 武器
         - 卸下 防具
         - 卸下 主功法
+        - 卸下 修炼心得
         - 卸下 副功法
         """
         try:
@@ -113,6 +114,7 @@ class EquipmentHandler:
                 "武器": "weapon",
                 "防具": "armor",
                 "主功法": "main_technique",
+                "修炼心得": "cultivation_technique",
                 "副功法": "technique",
             }
             

@@ -1,6 +1,6 @@
 """修炼业务服务"""
 import time
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from ...core.config import ConfigManager
 from ...core.exceptions import InvalidStateException
@@ -10,6 +10,9 @@ from ...domain.value_objects import CultivationResult
 from ...infrastructure.repositories.player_repo import PlayerRepository
 from ...utils.spirit_root_generator import SpiritRootGenerator
 
+if TYPE_CHECKING:
+    from .equipment_service import EquipmentService
+
 
 class CultivationService:
     """修炼业务服务"""
@@ -18,11 +21,13 @@ class CultivationService:
         self,
         player_repo: PlayerRepository,
         config_manager: ConfigManager,
-        spirit_root_generator: SpiritRootGenerator
+        spirit_root_generator: SpiritRootGenerator,
+        equipment_service: Optional["EquipmentService"] = None
     ):
         self.player_repo = player_repo
         self.config_manager = config_manager
         self.spirit_root_generator = spirit_root_generator
+        self.equipment_service = equipment_service
     
     def start_cultivation(self, player: Player) -> None:
         """
@@ -87,8 +92,19 @@ class CultivationService:
         effective_minutes = min(duration_minutes, max_minutes)
         is_overtime = duration_minutes > max_minutes
         
-        # 计算获得的修为
-        gained_exp = self._calculate_cultivation_exp(player, effective_minutes)
+        # 闭关先计算基础收益，再与其他玩法共用统一修为倍率入口。
+        base_exp = self._calculate_cultivation_exp(
+            player,
+            effective_minutes,
+            technique_bonus=0.0
+        )
+        equipment_exp_bonus = self.player_repo.get_experience_bonus(
+            player.user_id
+        )
+        gained_exp = self.player_repo.calculate_experience_reward(
+            player.user_id,
+            base_exp
+        )
         
         # 更新玩家修为
         player.add_experience(gained_exp)
@@ -100,7 +116,8 @@ class CultivationService:
             duration_minutes=duration_minutes,
             gained_exp=gained_exp,
             is_overtime=is_overtime,
-            max_minutes=max_minutes
+            max_minutes=max_minutes,
+            equipment_exp_bonus=equipment_exp_bonus
         )
     
     def _get_max_cultivation_minutes(self, level_index: int) -> int:

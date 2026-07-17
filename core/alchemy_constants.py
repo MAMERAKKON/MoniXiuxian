@@ -3,14 +3,14 @@ from typing import Dict, List, Tuple
 
 # 品质等级映射
 RANK_LEVELS: Dict[str, Dict[str, Tuple[int, int]]] = {
-    "凡品": {"level_range": (0, 2), "success_rate_range": (85, 95)},
-    "灵品": {"level_range": (3, 5), "success_rate_range": (75, 85)},
-    "珍品": {"level_range": (3, 5), "success_rate_range": (75, 85)},
-    "圣品": {"level_range": (6, 8), "success_rate_range": (65, 75)},
-    "帝品": {"level_range": (9, 11), "success_rate_range": (55, 65)},
-    "道品": {"level_range": (12, 14), "success_rate_range": (45, 55)},
-    "仙品": {"level_range": (15, 17), "success_rate_range": (35, 45)},
-    "神品": {"level_range": (18, 20), "success_rate_range": (25, 35)}
+    "凡品": {"level_range": (0, 9), "success_rate_range": (85, 95)},
+    "灵品": {"level_range": (10, 19), "success_rate_range": (70, 85)},
+    "珍品": {"level_range": (20, 29), "success_rate_range": (70, 85)},
+    "圣品": {"level_range": (30, 39), "success_rate_range": (55, 75)},
+    "帝品": {"level_range": (40, 49), "success_rate_range": (40, 65)},
+    "道品": {"level_range": (50, 59), "success_rate_range": (40, 55)},
+    "仙品": {"level_range": (60, 69), "success_rate_range": (35, 45)},
+    "神品": {"level_range": (70, 100), "success_rate_range": (25, 35)}
 }
 
 # 材料分类（按品质）
@@ -62,5 +62,6 @@ MATERIAL_THEMES: Dict[str, List[str]] = {
 VALID_RANKS: List[str] = ["凡品", "灵品", "珍品", "圣品", "帝品", "道品", "仙品", "神品"]
 
 # 经济平衡参数
-COST_RATIO_MIN: float = 1.1  # 成本最小比率（售价的110%）
-COST_RATIO_MAX: float = 1.3  # 成本最大比率（售价的130%）
+# 当前经济模型鼓励玩家炼丹：材料参考价与炼制费合计约为丹药参考价的 50%-70%。
+COST_RATIO_MIN: float = 0.5
+COST_RATIO_MAX: float = 0.7

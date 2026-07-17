@@ -1,18 +1,25 @@
 """玩家仓储"""
 import json
 import time
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, TYPE_CHECKING
 
 from ...domain.models.player import Player
 from ...domain.enums import CultivationType, PlayerState
 from ..storage import JSONStorage, TimestampConverter
 from .base import BaseRepository
 
+if TYPE_CHECKING:
+    from .equipment_repo import EquipmentRepository
+
 
 class PlayerRepository(BaseRepository[Player]):
     """玩家仓储实现"""
     
-    def __init__(self, storage: JSONStorage):
+    def __init__(
+        self,
+        storage: JSONStorage,
+        equipment_repo: Optional["EquipmentRepository"] = None
+    ):
         """
         初始化玩家仓储
         
@@ -20,6 +27,7 @@ class PlayerRepository(BaseRepository[Player]):
             storage: JSON 存储管理器
         """
         super().__init__(storage, "players.json")
+        self.equipment_repo = equipment_repo
     
     def get_by_id(self, user_id: str) -> Optional[Player]:
         """
@@ -192,7 +200,29 @@ class PlayerRepository(BaseRepository[Player]):
         
         self.save(player)
     
-    def add_experience(self, user_id: str, exp: int) -> None:
+    def get_experience_bonus(self, user_id: str) -> float:
+        """
+        统一汇总玩家的修为获取效率。
+
+        以后增加永久天赋、限时增益或特殊道具时，只需在这里追加来源，
+        所有正常玩法的修为结算都会自动继承，无需逐个修改业务服务。
+        """
+        if not self.equipment_repo:
+            return 0.0
+        try:
+            equipped = self.equipment_repo.get_equipped_items(str(user_id))
+            if not equipped:
+                return 0.0
+            return max(-0.99, float(equipped.get_total_stats().exp_multiplier))
+        except Exception:
+            return 0.0
+
+    def calculate_experience_reward(self, user_id: str, base_exp: int) -> int:
+        """把功法倍率应用到一次正向修为收益。"""
+        base_exp = max(0, int(base_exp))
+        return max(0, int(base_exp * (1.0 + self.get_experience_bonus(user_id))))
+
+    def add_experience(self, user_id: str, exp: int) -> int:
         """
         增加玩家修为（便捷方法）
         
@@ -204,8 +234,10 @@ class PlayerRepository(BaseRepository[Player]):
         if not player:
             raise ValueError(f"玩家不存在: {user_id}")
         
-        player.add_experience(exp)
+        actual_exp = self.calculate_experience_reward(user_id, exp)
+        player.add_experience(actual_exp)
         self.save(player)
+        return actual_exp
     
     def add_pill(self, user_id: str, pill_name: str, count: int) -> None:
         """
@@ -303,7 +335,7 @@ class PlayerRepository(BaseRepository[Player]):
         """
         results = self.storage.query(self.filename)
         return [self._to_domain(data) for data in results]
-    
+
     def _to_domain(self, data: Dict[str, Any]) -> Player:
         """
         将字典数据转换为领域对象
@@ -365,6 +397,7 @@ class PlayerRepository(BaseRepository[Player]):
             weapon=data.get('weapon'),
             armor=data.get('armor'),
             main_technique=data.get('main_technique'),
+            cultivation_technique=data.get('cultivation_technique'),
             pills_inventory=pills_inventory,
             storage_ring=data.get('storage_ring', '基础储物戒'),
             storage_ring_items=storage_ring_items,
@@ -417,6 +450,7 @@ class PlayerRepository(BaseRepository[Player]):
             'weapon': player.weapon,
             'armor': player.armor,
             'main_technique': player.main_technique,
+            'cultivation_technique': player.cultivation_technique,
             'pills_inventory': player.pills_inventory,
             'storage_ring': player.storage_ring,
             'storage_ring_items': player.storage_ring_items,

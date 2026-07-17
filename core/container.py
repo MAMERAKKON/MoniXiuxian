@@ -27,6 +27,7 @@ class Container:
         # 单例组件
         self._config_manager: Optional[ConfigManager] = config_manager
         self._json_storage = None
+        self._boss_service = None
         
         # 仓储层（每次创建新实例）
         # 将在后续实现
@@ -71,7 +72,7 @@ class Container:
         """获取玩家仓储"""
         from ..infrastructure.repositories.player_repo import PlayerRepository
         storage = self.json_storage()
-        return PlayerRepository(storage)
+        return PlayerRepository(storage, self.equipment_repository())
     
     def combat_repository(self):
         """获取战斗仓储"""
@@ -196,7 +197,8 @@ class Container:
         from ..application.services.player_service import PlayerService
         return PlayerService(
             self.player_repository(),
-            self.config_manager()
+            self.config_manager(),
+            self.reincarnation_repository()
         )
     
     def cultivation_service(self):
@@ -205,7 +207,8 @@ class Container:
         return CultivationService(
             self.player_repository(),
             self.config_manager(),
-            self.spirit_root_generator()
+            self.spirit_root_generator(),
+            self.equipment_service()
         )
     
     def breakthrough_service(self):
@@ -288,7 +291,8 @@ class Container:
             self.player_repository(),
             self.storage_ring_repository(),
             self.config_manager(),
-            self.bounty_repository()  # 添加悬赏仓储
+            self.bounty_repository(),
+            self.reincarnation_repository()
         )
     
     def rift_service(self):
@@ -303,15 +307,17 @@ class Container:
         )
     
     def boss_service(self):
-        """获取Boss服务"""
-        from ..application.services.boss_service import BossService
-        return BossService(
-            self.player_repository(),
-            self.boss_repository(),
-            self.storage_ring_repository(),
-            self.config_manager(),
-            self.combat_service()
-        )
+        """获取Boss服务（单例，保证并发挑战共用同一结算锁）。"""
+        if self._boss_service is None:
+            from ..application.services.boss_service import BossService
+            self._boss_service = BossService(
+                self.player_repository(),
+                self.boss_repository(),
+                self.storage_ring_repository(),
+                self.config_manager(),
+                self.combat_service()
+            )
+        return self._boss_service
     
     def bounty_service(self):
         """获取悬赏服务"""
@@ -430,3 +436,4 @@ class Container:
         if self._json_storage:
             self._json_storage = None
             logger.info("【修仙V3】JSON 存储已清理")
+        self._boss_service = None

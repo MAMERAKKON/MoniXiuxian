@@ -224,6 +224,7 @@ class EquipmentRepository(BaseRepository[Equipment]):
         weapon = None
         armor = None
         main_technique = None
+        cultivation_technique = None
         
         if player.weapon:
             weapon = self.get_equipment_by_name(player.weapon)
@@ -233,12 +234,31 @@ class EquipmentRepository(BaseRepository[Equipment]):
         
         if player.main_technique:
             main_technique = self.get_equipment_by_name(player.main_technique)
+
+        if player.cultivation_technique:
+            cultivation_technique = self.get_equipment_by_name(
+                player.cultivation_technique
+            )
+
+        # 兼容独立槽位上线前已被装备到主功法位的历练心得。
+        if main_technique and main_technique.subtype == "修炼心得":
+            if cultivation_technique is None:
+                cultivation_technique = main_technique
+                player.cultivation_technique = main_technique.name
+            else:
+                player.storage_ring_items[main_technique.name] = (
+                    player.storage_ring_items.get(main_technique.name, 0) + 1
+                )
+            player.main_technique = None
+            main_technique = None
+            PlayerRepository(self.storage).save(player)
         
         # 创建EquippedItems对象
         equipped_items = EquippedItems(
             weapon=weapon,
             armor=armor,
             main_technique=main_technique,
+            cultivation_technique=cultivation_technique,
             techniques=[]  # 暂时不支持副功法
         )
         
@@ -267,6 +287,10 @@ class EquipmentRepository(BaseRepository[Equipment]):
         player.weapon = equipped_items.weapon.name if equipped_items.weapon else None
         player.armor = equipped_items.armor.name if equipped_items.armor else None
         player.main_technique = equipped_items.main_technique.name if equipped_items.main_technique else None
+        player.cultivation_technique = (
+            equipped_items.cultivation_technique.name
+            if equipped_items.cultivation_technique else None
+        )
         
         # 保存玩家数据
         player_repo.save(player)
@@ -299,6 +323,8 @@ class EquipmentRepository(BaseRepository[Equipment]):
             player.armor = equipment.name
         elif slot == "main_technique":
             player.main_technique = equipment.name
+        elif slot == "cultivation_technique":
+            player.cultivation_technique = equipment.name
         elif slot == "technique":
             # 副功法暂不支持
             return False
@@ -344,6 +370,9 @@ class EquipmentRepository(BaseRepository[Equipment]):
         elif slot == "main_technique":
             unequipped = equipped_items.main_technique
             player.main_technique = None
+        elif slot == "cultivation_technique":
+            unequipped = equipped_items.cultivation_technique
+            player.cultivation_technique = None
         elif slot == "technique":
             # 副功法暂不支持
             return None

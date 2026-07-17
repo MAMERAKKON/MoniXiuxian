@@ -117,7 +117,7 @@ class SpiritEyeService:
             raise GameException("❌ 暂无可收取的修为")
         
         # 增加修为
-        self.player_repo.add_experience(user_id, exp_income)
+        exp_income = self.player_repo.add_experience(user_id, exp_income)
         
         # 更新收取时间
         self.spirit_eye_repo.update_collect_time(eye.eye_id, now)

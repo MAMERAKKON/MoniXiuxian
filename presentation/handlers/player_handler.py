@@ -299,6 +299,7 @@ class PlayerHandler:
                 # 每次轮回只在这里合并一次并计数一次。
                 # 百分比由领域模型按“每世乘算”合并，固定值仍然加算。
                 reincarnation_data.merge_to_permanent(realm_bonus)
+                reincarnation_data.last_reincarnation_time = current_time
                 reincarnation_repo.save(reincarnation_data)
 
                 if has_life_pool:
@@ -354,7 +355,8 @@ class PlayerHandler:
                 f"{realm_reward_info}\n"
                 f"━━━━━━━━━━━━━━━\n"
                 f"可立即使用「我要修仙」重新踏上仙途。\n"
-                f"（60秒内不可再次轮回）"
+                f"（60秒内不可再次轮回；新生角色享有8小时轮回庇护，"
+                f"主动发起传承挑战将立即解除）"
             )
             
         except Exception as e:

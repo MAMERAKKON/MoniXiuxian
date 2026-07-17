@@ -96,6 +96,7 @@ class Commands:
     
     # Boss系统
     BOSS_INFO = "世界Boss"
+    BOSS_CODEX = "Boss图鉴"
     CHALLENGE_BOSS = "挑战Boss"
     SPAWN_BOSS = "生成Boss"
     

@@ -232,7 +232,7 @@ class BlessedLandService:
         exp_income = min(exp_income, max_exp_per_hour * hours)
         
         self.player_repo.add_gold(user_id, gold_income)
-        self.player_repo.add_experience(user_id, exp_income)
+        exp_income = self.player_repo.add_experience(user_id, exp_income)
         self.blessed_land_repo.update_blessed_land(user_id, last_collect_time=now)
         
         player = self.player_repo.get_player(user_id)

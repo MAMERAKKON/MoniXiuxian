@@ -66,7 +66,7 @@ class CostCalculator:
     
     def validate_cost_balance(self, recipe_cost: int, pill_price: int) -> bool:
         """
-        验证成本是否在售价的110%-130%范围内
+        验证总投入是否处于当前经济模型的推荐范围
         
         Args:
             recipe_cost: 配方成本

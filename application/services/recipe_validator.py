@@ -141,8 +141,8 @@ class RecipeValidator:
         if recipe.rank not in VALID_RANKS:
             result.add_error(f"无效的品质等级: {recipe.rank}")
         
-        if not (0 <= recipe.level_required <= 20):
-            result.add_error(f"炼丹等级要求必须在0-20之间，当前为: {recipe.level_required}")
+        if not (0 <= recipe.level_required <= 100):
+            result.add_error(f"炼丹等级要求必须在0-100之间，当前为: {recipe.level_required}")
         
         if not (25 <= recipe.success_rate <= 95):
             result.add_error(f"成功率必须在25-95之间，当前为: {recipe.success_rate}")
@@ -189,8 +189,11 @@ class RecipeValidator:
     
     def _validate_material_rank_matching(self, recipe: Recipe, result: ValidationResult):
         """验证材料等级匹配"""
-        # 计算各等级材料的成本占比
-        total_cost = recipe.cost
+        # 计算各等级材料的成本占比（炼制费不属于材料成本）
+        total_cost = sum(
+            (self.cost_calculator.get_material_price(name) or 0) * quantity
+            for name, quantity in recipe.materials.items()
+        )
         if total_cost <= 0:
             return
         
@@ -240,8 +243,10 @@ class RecipeValidator:
             result.add_warning(f"配方 {recipe.id} 对应的丹药 {recipe.pill_id} 价格未找到")
             return
         
-        ratio = self.cost_calculator.get_cost_ratio(recipe.cost, pill_price)
-        if not self.cost_calculator.validate_cost_balance(recipe.cost, pill_price):
+        material_cost = self.cost_calculator.calculate_recipe_cost(recipe.materials)
+        total_cost = material_cost + recipe.cost
+        ratio = self.cost_calculator.get_cost_ratio(total_cost, pill_price)
+        if not self.cost_calculator.validate_cost_balance(total_cost, pill_price):
             result.add_warning(
                 f"配方 {recipe.id} 的成本比率为 {ratio:.1%}，"
                 f"超出推荐范围 ({COST_RATIO_MIN:.0%}-{COST_RATIO_MAX:.0%})"

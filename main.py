@@ -20,19 +20,20 @@ class XiuxianGroupWhitelistFilter(filter.CustomFilter):
 
     def filter(self, event: AstrMessageEvent, cfg) -> bool:
         # 留空代表不限制，兼容原有默认行为。
-        if not _WHITELIST_GROUPS:
-            return True
+        if _WHITELIST_GROUPS:
+            group_id = str(event.get_group_id() or "").strip()
+            # 白名单启用后，私聊 group_id 为空，因此也不会触发本插件。
+            if not (group_id and group_id in _WHITELIST_GROUPS):
+                return False
 
-        group_id = str(event.get_group_id() or "").strip()
-        # 白名单启用后，私聊 group_id 为空，因此也不会触发本插件。
-        return bool(group_id and group_id in _WHITELIST_GROUPS)
+        return True
 
 
 @register(
     "astrbot_plugin_monixiuxianv3",
     "MAMERAKKKKON",
     "模拟修仙 ver.M 群聊修仙游戏插件",
-    "1.1"
+    "1.2"
 )
 class XiuxianV3Plugin(Star):
     """模拟修仙 ver.M 插件。"""
@@ -40,6 +41,7 @@ class XiuxianV3Plugin(Star):
     # 每小时检查一次；最多保留 5 个无主灵眼，防止无限堆积。
     SPIRIT_EYE_CHECK_INTERVAL_SECONDS = 3600
     MAX_AVAILABLE_SPIRIT_EYES = 5
+    BOSS_CHECK_INTERVAL_SECONDS = 60
     
     def __init__(self, context: Context, config=None):
         super().__init__(context)
@@ -83,6 +85,7 @@ class XiuxianV3Plugin(Star):
         # 初始化依赖注入容器（传入配置管理器）
         self.container = Container(data_dir=self.data_dir, config_manager=self.config_manager)
         self.spirit_eye_task = None
+        self.boss_task = None
         
         # 初始化所有 handlers
         self._setup_handlers()
@@ -166,10 +169,8 @@ class XiuxianV3Plugin(Star):
         self.rift_handler = RiftHandler(
             self.container.rift_service()
         )
-        self.boss_handler = BossHandler(
-            self.container.boss_service(),
-            self.config_manager
-        )
+        self.boss_service = self.container.boss_service()
+        self.boss_handler = BossHandler(self.boss_service, self.config_manager)
         self.bounty_handler = BountyHandler(
             self.container.bounty_service()
         )
@@ -221,6 +222,7 @@ class XiuxianV3Plugin(Star):
 
             # 此时异步事件循环已经运行，可以安全启动灵眼定时任务。
             self._start_spirit_eye_task()
+            self._start_boss_task()
             
             logger.info("【修仙ver.M】插件已启动")
         except Exception as e:
@@ -284,6 +286,54 @@ class XiuxianV3Plugin(Star):
             logger.info(f"✨ 【修仙ver.M】{result}")
         except Exception as e:
             logger.error(f"【修仙ver.M】生成灵眼失败: {e}", exc_info=True)
+
+    def _start_boss_task(self):
+        """启动Boss重生时间检查任务。"""
+        try:
+            if self.boss_task and not self.boss_task.done():
+                logger.info("【修仙ver.M】Boss重生任务已在运行")
+                return
+            self.boss_task = asyncio.create_task(
+                self._boss_spawn_loop(),
+                name="monixiuxian_boss_spawn",
+            )
+            logger.info("【修仙ver.M】Boss随机重生任务已启动（每分钟检查）")
+        except Exception as e:
+            self.boss_task = None
+            logger.error(f"【修仙ver.M】启动Boss重生任务失败: {e}", exc_info=True)
+
+    async def _boss_spawn_loop(self):
+        """按持久化的预定时间检查Boss是否应当降临。"""
+        try:
+            while True:
+                await self._auto_spawn_due_boss()
+                await asyncio.sleep(self.BOSS_CHECK_INTERVAL_SECONDS)
+        except asyncio.CancelledError:
+            logger.debug("【修仙ver.M】Boss重生循环已取消")
+            raise
+
+    async def _auto_spawn_due_boss(self):
+        try:
+            boss = self.boss_service.try_spawn_due_boss()
+            if not boss:
+                return
+            result = (
+                f"👹 世界Boss『{boss.boss_name}』降临！\n"
+                f"境界：{boss.boss_level}｜HP：{boss.max_hp:,}｜"
+                f"{('魔法' if boss.damage_type == 'magic' else '物理')}伤害｜"
+                f"修为奖池：{boss.exp_reward:,}｜灵石奖池：{boss.stone_reward:,}"
+            )
+            # 未限制群聊时沿用AstrBot全局广播；白名单模式只写日志，
+            # 避免向未授权群发送插件消息。
+            if not _WHITELIST_GROUPS:
+                try:
+                    from astrbot.api import broadcast
+                    await broadcast(result)
+                except Exception:
+                    pass
+            logger.info(f"【修仙ver.M】{result}")
+        except Exception as e:
+            logger.error(f"【修仙ver.M】自动生成Boss失败: {e}", exc_info=True)
     
     def _initialize_rifts(self):
         """初始化秘境数据"""
@@ -381,19 +431,26 @@ class XiuxianV3Plugin(Star):
             logger.warning("【修仙ver.M】秘境功能可能无法正常使用，请检查日志")
     
     def _initialize_boss(self):
-        """初始化Boss数据（如果没有存活的Boss，自动生成一个）"""
+        """首次安装立即生成；已有击杀历史则恢复或补建重生计划。"""
         try:
-            boss_service = self.container.boss_service()
-            
             # 检查是否已有存活的Boss
-            existing_boss = boss_service.get_active_boss()
+            existing_boss = self.boss_service.get_active_boss()
             if existing_boss:
                 logger.info(f"【修仙ver.M】已有存活的Boss：{existing_boss.boss_name}")
                 return  # 已有Boss，跳过初始化
-            
-            # 自动生成一个Boss
-            boss = boss_service.auto_spawn_boss()
-            logger.info(f"【修仙ver.M】已自动生成初始Boss：{boss.boss_name}（{boss.boss_level}境）")
+
+            if not self.boss_service.boss_repo.has_any_boss():
+                boss = self.boss_service.auto_spawn_boss()
+                logger.info(
+                    f"【修仙ver.M】已生成初始Boss：{boss.boss_name}"
+                    f"（{boss.boss_level}境）"
+                )
+            else:
+                spawn_time = self.boss_service.ensure_spawn_schedule()
+                logger.info(
+                    "【修仙ver.M】当前Boss已被击杀，已恢复下一次随机生成计划："
+                    f"{spawn_time}"
+                )
             
         except Exception as e:
             logger.error(f"【修仙ver.M】初始化Boss数据失败: {e}", exc_info=True)
@@ -925,6 +982,13 @@ class XiuxianV3Plugin(Star):
         """世界Boss"""
         async for result in self.boss_handler.handle_boss_info(event):
             yield result
+
+    @filter.command(Commands.BOSS_CODEX)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_boss_codex(self, event: AstrMessageEvent, query: str = ""):
+        """Boss图鉴"""
+        async for result in self.boss_handler.handle_boss_codex(event, query):
+            yield result
     
     @filter.command(Commands.CHALLENGE_BOSS)
     @filter.custom_filter(XiuxianGroupWhitelistFilter)
@@ -1273,6 +1337,15 @@ class XiuxianV3Plugin(Star):
                     pass
                 logger.info("【修仙ver.M】灵眼定时任务已停止")
             self.spirit_eye_task = None
+
+            if self.boss_task and not self.boss_task.done():
+                self.boss_task.cancel()
+                try:
+                    await self.boss_task
+                except asyncio.CancelledError:
+                    pass
+                logger.info("【修仙ver.M】Boss重生任务已停止")
+            self.boss_task = None
 
             # 清理容器资源（包括关闭数据库连接）
             self.container.cleanup()

@@ -182,6 +182,17 @@ class PillService:
         pill_config = self.get_pill_config(pill_name)
         if not pill_config:
             raise BusinessException(f"丹药【{pill_name}】配置不存在！")
+
+        # 破境丹只能随“突破”指令使用，避免被普通服药流程无效消耗。
+        pill_effect = pill_config.get("effect", {}) or {}
+        if (
+            pill_config.get("subtype") == "breakthrough"
+            or "breakthrough_rate" in pill_effect
+        ):
+            raise BusinessException(
+                f"【{pill_name}】是突破专用丹药，不能直接服用！\n"
+                f"💡 请使用：突破 {pill_name}"
+            )
         
         # 检查境界需求
         required_level = pill_config.get("required_level_index", 0)
@@ -189,6 +200,26 @@ class PillService:
             raise BusinessException(
                 f"境界不足！使用【{pill_name}】需要达到境界等级{required_level}（当前：境界等级{player.level_index}）"
             )
+
+        # 纯回血丹在生命值已满时不应被浪费；复合丹仍可获得其他效果。
+        is_pure_healing_pill = (
+            set(pill_effect) == {"add_hp"}
+            and pill_effect.get("add_hp", 0) > 0
+        )
+        if is_pure_healing_pill:
+            if player.cultivation_type.value == "灵修":
+                current_hp = player.spiritual_qi
+                max_hp = player.max_spiritual_qi
+                resource_name = "灵气"
+            else:
+                current_hp = player.blood_qi
+                max_hp = player.max_blood_qi
+                resource_name = "气血"
+
+            if current_hp >= max_hp:
+                raise BusinessException(
+                    f"你的{resource_name}已满，无需服用【{pill_name}】！"
+                )
         
         # 批量应用丹药效果
         total_effects = {}
@@ -321,7 +352,10 @@ class PillService:
         
         # 增加修为
         if "add_experience" in total_effects:
-            exp_gain = total_effects["add_experience"]
+            exp_gain = self.player_repo.calculate_experience_reward(
+                player.user_id,
+                total_effects["add_experience"]
+            )
             player.experience += exp_gain
             message_parts.append(f"📈 获得修为：+{exp_gain:,}")
             message_parts.append(f"💫 当前修为：{player.experience:,}")
@@ -366,15 +400,52 @@ class PillService:
             message_parts.append(f"✨ 突破加成：+{bonus_percent}%")
             message_parts.append(f"🎯 累计突破加成：{player.level_up_rate}%")
         
-        # 增加灵力（临时属性，可能需要其他处理）
+        # 增加本源值：灵修对应灵气，体修对应气血。
+        # 同时改变当前值与上限，让配置中的效果真实持久化。
         if "add_spiritual_power" in total_effects:
             spiritual_power_gain = total_effects["add_spiritual_power"]
-            message_parts.append(f"💫 灵力提升：+{spiritual_power_gain}")
+            if player.cultivation_type.value == "灵修":
+                old_max = player.max_spiritual_qi
+                player.max_spiritual_qi = max(
+                    1,
+                    player.max_spiritual_qi + spiritual_power_gain
+                )
+                actual_change = player.max_spiritual_qi - old_max
+                player.spiritual_qi = min(
+                    player.max_spiritual_qi,
+                    max(0, player.spiritual_qi + actual_change)
+                )
+                message_parts.append(
+                    f"💫 灵气本源：{actual_change:+}"
+                )
+                message_parts.append(
+                    f"💖 当前灵气：{player.spiritual_qi}/"
+                    f"{player.max_spiritual_qi}"
+                )
+            else:
+                old_max = player.max_blood_qi
+                player.max_blood_qi = max(
+                    1,
+                    player.max_blood_qi + spiritual_power_gain
+                )
+                actual_change = player.max_blood_qi - old_max
+                player.blood_qi = min(
+                    player.max_blood_qi,
+                    max(0, player.blood_qi + actual_change)
+                )
+                message_parts.append(
+                    f"💫 血气本源：{actual_change:+}"
+                )
+                message_parts.append(
+                    f"💖 当前气血：{player.blood_qi}/{player.max_blood_qi}"
+                )
         
-        # 增加精神力（临时属性，可能需要其他处理）
+        # 增加精神力
         if "add_mental_power" in total_effects:
             mental_power_gain = total_effects["add_mental_power"]
+            player.mental_power = max(0, player.mental_power + mental_power_gain)
             message_parts.append(f"🧠 精神力提升：+{mental_power_gain}")
+            message_parts.append(f"✨ 当前精神力：{player.mental_power}")
         
         # 增加防御力
         if "add_defense" in total_effects:
@@ -482,9 +553,13 @@ class PillService:
             if effect_data.get('add_max_hp'):
                 effects.append(f"气血上限+{effect_data['add_max_hp']}")
             if effect_data.get('add_spiritual_power'):
-                effects.append(f"灵力+{effect_data['add_spiritual_power']}")
+                effects.append(
+                    f"本源{effect_data['add_spiritual_power']:+}"
+                )
             if effect_data.get('add_mental_power'):
-                effects.append(f"精神力+{effect_data['add_mental_power']}")
+                effects.append(
+                    f"精神力{effect_data['add_mental_power']:+}"
+                )
             if effect_data.get('add_attack'):
                 effects.append(f"攻击力+{effect_data['add_attack']}")
             if effect_data.get('add_defense'):

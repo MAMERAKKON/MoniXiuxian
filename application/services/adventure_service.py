@@ -10,23 +10,33 @@ from ...core.exceptions import GameException
 from ...domain.models.adventure import AdventureRoute, AdventureEvent, AdventureResult
 from ...domain.enums import PlayerState
 from ...infrastructure.repositories.player_repo import PlayerRepository
+from ...infrastructure.repositories.reincarnation_repo import ReincarnationRepository
 from ...infrastructure.repositories.storage_ring_repo import StorageRingRepository
 
 
 class AdventureService:
     """历练服务"""
+
+    ATTRIBUTE_LABELS = {
+        "hp_flat": "HP白值",
+        "attack_flat": "攻击白值",
+        "mp_flat": "MP白值",
+        "defense_flat": "防御白值",
+    }
     
     def __init__(
         self,
         player_repo: PlayerRepository,
         storage_ring_repo: StorageRingRepository,
         config_manager: ConfigManager,
-        bounty_repo=None  # 添加可选的悬赏仓储
+        bounty_repo=None,
+        reincarnation_repo: Optional[ReincarnationRepository] = None
     ):
         self.player_repo = player_repo
         self.storage_ring_repo = storage_ring_repo
         self.config_manager = config_manager
         self.bounty_repo = bounty_repo  # 保存悬赏仓储引用
+        self.reincarnation_repo = reincarnation_repo
         self.routes: Dict[str, Dict] = {}  # 存储原始路线配置
         self.route_alias_index: Dict[str, str] = {}  # 别名索引
         self.event_groups: Dict[str, List[Dict]] = {}  # 事件组
@@ -74,7 +84,18 @@ class AdventureService:
                 "duration": route.get("duration", 0),
                 "min_level": route.get("min_level", 0),
                 "description": route.get("description", ""),
-                "aliases": route.get("aliases", [])
+                "aliases": route.get("aliases", []),
+                "attribute_chance": route.get("attribute_reward", {}).get(
+                    "chance",
+                    0
+                ),
+                "cultivation_drop_chance": route.get(
+                    "cultivation_drop",
+                    {}
+                ).get(
+                    "chance",
+                    0
+                )
             })
         return overview
     
@@ -213,8 +234,20 @@ class AdventureService:
             raise BusinessException("玩家不存在")
         
         # 更新金币和修为
+        result.exp_gained = self.player_repo.calculate_experience_reward(
+            user_id,
+            result.exp_gained
+        )
         player.add_gold(result.gold_gained)
         player.add_experience(result.exp_gained)
+
+        # 历练白值进入本世传承池，轮回时再合并到永久池。
+        if result.attribute_gained and self.reincarnation_repo:
+            self.reincarnation_repo.add_to_life_pool(
+                user_id,
+                result.attribute_gained["key"],
+                result.attribute_gained["value"]
+            )
         
         # 发放物品
         synthesis_messages = []
@@ -263,7 +296,11 @@ class AdventureService:
         # 更新悬赏进度
         if self.bounty_repo:
             try:
-                self._update_bounty_progress(user_id, route, result)
+                result.bounty_progress_gained = self._update_bounty_progress(
+                    user_id,
+                    route,
+                    result
+                )
             except Exception as e:
                 # 悬赏更新失败不影响历练完成
                 pass
@@ -401,6 +438,12 @@ class AdventureService:
                             "count": count
                         })
                         break
+
+        cultivation_item = self._roll_cultivation_drop(route)
+        if cultivation_item:
+            items_gained.append({"name": cultivation_item, "count": 1})
+
+        attribute_gained = self._roll_attribute_reward(route)
         
         return AdventureResult(
             success=True,
@@ -409,24 +452,84 @@ class AdventureService:
             items_gained=items_gained,
             event_type=event_type,
             event_description=event_description,
-            fatigue_cost=route.get("fatigue_cooldown", 0)
+            fatigue_cost=0,
+            attribute_gained=attribute_gained,
+            event_bonus_progress=max(0, int(event.get("bonus_progress", 0)))
         )
+
+    def _roll_attribute_reward(self, route: Dict) -> Optional[Dict[str, object]]:
+        """按路线配置随机生成一项本世白值奖励。"""
+        reward_config = route.get("attribute_reward", {})
+        if not self.reincarnation_repo or not reward_config:
+            return None
+        if random.random() * 100 > float(reward_config.get("chance", 0)):
+            return None
+
+        ranges = reward_config.get("ranges", {})
+        available = [
+            key for key, value_range in ranges.items()
+            if key in self.ATTRIBUTE_LABELS
+            and isinstance(value_range, list)
+            and len(value_range) == 2
+            and float(value_range[1]) > 0
+        ]
+        if not available:
+            return None
+
+        key = random.choice(available)
+        minimum, maximum = map(float, ranges[key])
+        value = round(random.uniform(minimum, maximum), 2)
+        if value <= 0:
+            return None
+        return {
+            "key": key,
+            "label": self.ATTRIBUTE_LABELS[key],
+            "value": value,
+        }
+
+    @staticmethod
+    def _roll_cultivation_drop(route: Dict) -> Optional[str]:
+        """独立判定历练专属的修炼加成功法掉落。"""
+        drop_config = route.get("cultivation_drop", {})
+        if random.random() * 100 > float(drop_config.get("chance", 0)):
+            return None
+
+        items = [
+            item for item in drop_config.get("items", [])
+            if item.get("name") and float(item.get("weight", 0)) > 0
+        ]
+        if not items:
+            return None
+
+        total_weight = sum(float(item["weight"]) for item in items)
+        roll = random.uniform(0, total_weight)
+        cumulative = 0.0
+        for item in items:
+            cumulative += float(item["weight"])
+            if roll <= cumulative:
+                return str(item["name"])
+        return str(items[-1]["name"])
     
-    def _update_bounty_progress(self, user_id: str, route: Dict, result: AdventureResult):
+    def _update_bounty_progress(
+        self,
+        user_id: str,
+        route: Dict,
+        result: AdventureResult
+    ) -> int:
         """更新悬赏进度"""
         # 获取路线的悬赏标签
         bounty_tag = route.get("bounty_tag")
         if not bounty_tag:
-            return
+            return 0
         
         # 获取进行中的悬赏任务
         active_bounty = self.bounty_repo.get_active_bounty(user_id)
         if not active_bounty:
-            return
+            return 0
         
         # 检查任务是否已过期
         if int(time.time()) > active_bounty.expire_time:
-            return
+            return 0
         
         # 检查标签是否匹配（从配置加载悬赏模板）
         try:
@@ -434,7 +537,7 @@ class AdventureService:
             from pathlib import Path
             config_file = self.config_manager.config_dir / "bounty_templates.json"
             if not config_file.exists():
-                return
+                return 0
             
             with open(config_file, 'r', encoding='utf-8') as f:
                 bounty_config = json.load(f)
@@ -443,17 +546,15 @@ class AdventureService:
             template = next((t for t in templates if t["id"] == active_bounty.bounty_id), None)
             
             if not template:
-                return
+                return 0
             
             progress_tags = template.get("progress_tags", [])
             if bounty_tag not in progress_tags:
-                return
+                return 0
             
             # 计算进度增加量
             base_progress = route.get("bounty_progress", 1)
-            # 事件可能提供额外进度
-            # 这里简化处理，直接使用基础进度
-            progress_to_add = base_progress
+            progress_to_add = base_progress + result.event_bonus_progress
             
             # 更新进度
             new_progress = min(
@@ -462,10 +563,11 @@ class AdventureService:
             )
             
             self.bounty_repo.update_progress(user_id, new_progress)
+            return max(0, new_progress - active_bounty.current_progress)
             
         except Exception:
             # 静默失败
-            pass
+            return 0
     
     def _resolve_item_category(self, item_name: str, drop_tier: str) -> str:
         """

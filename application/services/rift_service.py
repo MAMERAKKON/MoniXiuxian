@@ -349,6 +349,10 @@ class RiftService:
             raise BusinessException("玩家不存在")
         
         # 发放奖励
+        exp_reward = self.player_repo.calculate_experience_reward(
+            user_id,
+            exp_reward
+        )
         player.add_gold(gold_reward)
         player.add_experience(exp_reward)
         

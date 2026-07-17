@@ -339,6 +339,11 @@ class BountyService:
         player = self.player_repo.get_by_id(user_id)
         if not player:
             raise BusinessException("玩家不存在")
+
+        exp_reward = self.player_repo.calculate_experience_reward(
+            user_id,
+            exp_reward
+        )
         
         player.gold += stone_reward
         player.experience += exp_reward

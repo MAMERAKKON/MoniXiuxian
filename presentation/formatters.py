@@ -109,6 +109,14 @@ class PlayerFormatter:
         weapon_name = player.weapon if player.weapon else "无"
         armor_name = player.armor if player.armor else "无"
         technique_name = player.main_technique if player.main_technique else "无"
+        cultivation_technique_name = (
+            player.cultivation_technique
+            if player.cultivation_technique else "无"
+        )
+        exp_bonus_percent = (
+            equipment_bonuses.exp_multiplier * 100
+            if equipment_bonuses else 0
+        )
         
         # 计算总属性（基础属性 + 装备加成）
         if equipment_bonuses:
@@ -185,6 +193,8 @@ class PlayerFormatter:
             f"\n"
             f"【装备信息】\n"
             f"  主修功法：{technique_name}\n"
+            f"  修炼心得：{cultivation_technique_name}\n"
+            f"  全行为修为加成：+{exp_bonus_percent:.0f}%\n"
             f"  法器：{weapon_name}\n"
             f"  防具：{armor_name}\n"
             f"\n"
