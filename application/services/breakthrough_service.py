@@ -9,6 +9,7 @@ from ...domain.models.player import Player
 from ...domain.enums import PlayerState, CultivationType
 from ...domain.value_objects import BreakthroughResult
 from ...infrastructure.repositories.player_repo import PlayerRepository
+from ...infrastructure.repositories.reincarnation_repo import ReincarnationRepository
 
 
 class BreakthroughService:
@@ -21,10 +22,12 @@ class BreakthroughService:
     def __init__(
         self,
         player_repo: PlayerRepository,
-        config_manager: ConfigManager
+        config_manager: ConfigManager,
+        reincarnation_repo: Optional[ReincarnationRepository] = None
     ):
         self.player_repo = player_repo
         self.config_manager = config_manager
+        self.reincarnation_repo = reincarnation_repo
     
     def check_breakthrough_requirements(self, player: Player) -> Tuple[bool, str]:
         """
@@ -88,6 +91,14 @@ class BreakthroughService:
         next_level_name = next_level_data.get("name", next_level_data.get("level_name", "未知"))
         required_exp = next_level_data.get("required_exp", next_level_data.get("exp_needed", 0))
         base_success_rate = next_level_data.get("success_rate", 0.5)
+
+        # 预览当前已经服用的通用突破丹加成；与实际突破判定保持同一套上限规则。
+        pill_bonus_rate = max(0.0, float(getattr(player, "level_up_rate", 0) or 0) / 100.0)
+        if self.reincarnation_repo:
+            pool = self.reincarnation_repo.get_reincarnation_pool(str(player.user_id))
+            if pool and pool.reincarnation_count >= 4:
+                pill_bonus_rate = min(pill_bonus_rate, 0.50)
+        preview_success_rate = min(1.0, max(0.0, base_success_rate + pill_bonus_rate))
         
         # 检查修为是否满足
         exp_satisfied = player.experience >= required_exp
@@ -100,6 +111,8 @@ class BreakthroughService:
             "current_exp": player.experience,
             "exp_satisfied": exp_satisfied,
             "base_success_rate": base_success_rate,
+            "pill_bonus_rate": pill_bonus_rate,
+            "preview_success_rate": preview_success_rate,
             "cultivation_type": player.cultivation_type
         }
     
@@ -312,13 +325,23 @@ class BreakthroughService:
         final_rate = base_success_rate
         max_rate = 1.0  # 默认最大100%
         
-        # 添加玩家已有的突破加成（来自之前服用的破境丹）
-        if player.level_up_rate > 0:
-            bonus_rate = player.level_up_rate / 100.0  # 转换为小数
-            final_rate += bonus_rate
-            info_lines.append(f"破境丹加成：+{player.level_up_rate}%")
+        # 添加玩家已有的突破加成（来自之前服用的通用突破辅助丹）。
+        # 该数值已经由 pill_service 写入玩家存档，这里只读取一次，不能再次
+        # 从物品配置叠加，否则会出现文本和实际判定不一致的问题。
+        stored_bonus_percent = max(0, float(getattr(player, "level_up_rate", 0) or 0))
+        if self.reincarnation_repo:
+            pool = self.reincarnation_repo.get_reincarnation_pool(str(player.user_id))
+            if pool and pool.reincarnation_count >= 4:
+                stored_bonus_percent = min(stored_bonus_percent, 50.0)
+                info_lines.append("第4世起通用突破丹累计加成上限：+50%")
+        # 该数值来自玩家已服用的通用突破丹，单独展示，避免与本次专用突破丹混淆。
+        info_lines.append(f"已生效丹药突破加成：+{stored_bonus_percent:g}%")
+        if stored_bonus_percent > 0:
+            final_rate += stored_bonus_percent / 100.0
         
-        # 如果使用了破境丹，添加丹药加成
+        # 如果使用了突破专用丹，添加一次性加成。
+        # 通用辅助丹应使用“服用 丹药名”，其加成已经在上方的
+        # player.level_up_rate 中；这里不重复计算。
         if pill_name:
             pills_config = self.config_manager.get_config("pills")
             pill_found = False
@@ -390,6 +413,38 @@ class BreakthroughService:
                             pill_found = True
                             break
         
+            # 兼容误将 items.json 中的通用突破辅助丹写在“突破 <丹药>”
+            # 后面的情况：不再重复加成，但给出明确提示，避免玩家误以为
+            # 丹药没有生效。
+            if not pill_found:
+                items_config = self.config_manager.get_config("items")
+                item_values = (
+                    items_config.values()
+                    if isinstance(items_config, dict)
+                    else items_config
+                    if isinstance(items_config, list)
+                    else []
+                )
+                for item_data in item_values:
+                    if not isinstance(item_data, dict) or item_data.get("name") != pill_name:
+                        continue
+                    effect = item_data.get("effect") or {}
+                    item_bonus = effect.get("add_breakthrough_bonus")
+                    if item_bonus:
+                        required_level = item_data.get("required_level_index", 0)
+                        if player.level_index < required_level:
+                            required_name = level_data[required_level].get(
+                                "name", level_data[required_level].get("level_name", "未知")
+                            )
+                            raise ValueError(
+                                f"【{pill_name}】需要达到【{required_name}】才能使用"
+                            )
+                        info_lines.append(
+                            f"【{pill_name}】为服用型辅助丹：当前累计加成已计入，未重复叠加"
+                        )
+                        pill_found = True
+                        break
+
         final_rate = max(0.0, min(final_rate, max_rate))
         info_lines.append(f"最终成功率：{final_rate:.1%}")
         info = "\n".join(info_lines)
@@ -439,6 +494,32 @@ class BreakthroughService:
         magic_damage_gain = next_level_data.get("breakthrough_magic_damage_gain", 0)
         physical_defense_gain = next_level_data.get("breakthrough_physical_defense_gain", 0)
         magic_defense_gain = next_level_data.get("breakthrough_magic_defense_gain", 0)
+
+        # 同境界裸装平衡：体修将一部分攻击换成气血和物防，
+        # 以保证单挑强度接近灵修；装备和传承仍按玩家实际属性叠加。
+        if player.cultivation_type == CultivationType.PHYSICAL.value:
+            spiritual_levels = self.config_manager.get_level_data(CultivationType.SPIRITUAL.value) or []
+            if player.level_index < len(spiritual_levels):
+                spiritual_data = spiritual_levels[player.level_index]
+                reference_attack = spiritual_data.get("breakthrough_magic_damage_gain", 0)
+                reference_defense = spiritual_data.get("breakthrough_magic_defense_gain", 0)
+                reference_energy = spiritual_data.get("breakthrough_spiritual_qi_gain", 0)
+                physical_damage_gain = int(reference_attack * 0.90)
+                physical_defense_gain = int(reference_defense * 1.35)
+                magic_damage_gain = 0
+                # 体修获得接近灵修参考值的法防成长，配合更高物防形成双抗。
+                magic_defense_gain = int(reference_defense * 1.00)
+                next_level_data = dict(next_level_data)
+                next_level_data["breakthrough_blood_qi_gain"] = int(reference_energy * 1.50)
+                mental_power_gain = int(
+                    spiritual_data.get("breakthrough_mental_power_gain", 0) * 0.85
+                )
+        else:
+            # 灵修实际攻击只使用法伤；基础物伤保持初始值5，不再随境界成长。
+            physical_damage_gain = 0
+            # 灵修保留输出优势，但降低防御成长，避免同时拥有高输出和高防御。
+            physical_defense_gain = int(physical_defense_gain * 0.75)
+            magic_defense_gain = int(magic_defense_gain * 0.75)
         
         # 根据修炼类型处理灵气/气血增长
         if player.cultivation_type == CultivationType.PHYSICAL.value:

@@ -17,29 +17,35 @@ class AdventureHandler:
         """处理历练信息命令"""
         try:
             routes = self.adventure_service.get_route_overview()
+            player = self.adventure_service.player_repo.get_player(event.get_sender_id())
             
             if not routes:
                 yield event.plain_result("暂无可用的历练路线")
                 return
             
             # 构建路线列表
-            lines = ["📖 历练路线总览", "━━━━━━━━━━━━━━━"]
+            lines = ["📖 历练列表", "━━━━━━━━━━━━━━━"]
             
             for route in routes:
                 duration = route["duration"] // 60
+                success_rate = (
+                    self.adventure_service._calculate_success_rate(player.level_index, self.adventure_service.routes[route["key"]])
+                    if player else route["base_success_rate"]
+                )
                 lines.append(
-                    f"· {route['name']} ({route['risk']}风险)"
-                    f"\n  - 时长：{duration} 分钟 | 推荐境界 ≥ {route['min_level']}"
-                    f"\n  - 本世白值感悟概率：{route['attribute_chance']}%"
-                    f"\n  - 修炼功法掉落概率：{route['cultivation_drop_chance']}%"
-                    f"\n  - 说明：{route['description']}"
+                    f"\n【{route['name']}】"
+                    f"\n- 时长：{duration}分钟｜风险：{route['risk']}"
+                    f"\n- 本次成功率：{success_rate:.1f}%｜推荐境界：{route['min_level']}"
+                    f"\n- 完整功法掉落率：{route['technique_drop_chance']}%"
+                    f"\n- 修炼心得：{ '、'.join(route['cultivation_drop_names']) }"
+                    f"\n- 修炼心得掉落率：{route['cultivation_drop_chance']}%"
+                    f"\n- 功法与心得碎片掉落率：{route['fragment_drop_chance']}%（随机一种）"
                 )
             
             lines.append(
                 "\n💡 指令用法：\n"
-                "  /开始历练 巡山问道\n"
-                "  /开始历练 猎魔肃清\n"
-                "  /历练状态 → 查看当前进度\n"
+                "  /开始历练 <路线名> → 开始\n"
+                "  /历练状态 → 查看进度\n"
                 "  /完成历练 → 领取奖励"
             )
             lines.append("━━━━━━━━━━━━━━━")
@@ -98,6 +104,13 @@ class AdventureHandler:
             # 事件描述
             if result.event_description:
                 lines.append(f"{result.event_description}\n")
+
+            if not result.success:
+                lines.append("本次历练失败，未获得任何奖励。")
+                if player:
+                    lines.append(f"当前气血/灵气：1")
+                yield event.plain_result("\n".join(lines))
+                return
             
             # 奖励信息
             lines.append(f"获得修为：+{result.exp_gained:,}")

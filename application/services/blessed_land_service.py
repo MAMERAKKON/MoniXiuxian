@@ -226,7 +226,8 @@ class BlessedLandService:
             raise GameException("❌ 暂无可收取的产出")
         
         # 修为收益（基于修炼加成）
-        exp_income = int(player.experience * land.exp_bonus * hours * 0.01)
+        # 洞天加成已纳入统一修为倍率入口，此处只计算基础洞天产出
+        exp_income = int(player.experience * hours * 0.01)
         # 限制单次最大修为收益，防止爆炸
         max_exp_per_hour = 50000
         exp_income = min(exp_income, max_exp_per_hour * hours)

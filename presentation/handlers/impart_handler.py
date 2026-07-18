@@ -48,12 +48,27 @@ class ImpartHandler:
         """从文本或真实At组件中提取用户ID。"""
         msg = str(msg or "")
 
+        # 兼容“小豆传承挑战 123456789”等唤醒前缀场景：
+        # 部分适配器不会把命令后的数字参数传入 target_info。
+        if not msg.strip():
+            full_text = ""
+            if hasattr(event, "message_str"):
+                full_text = str(event.message_str or "")
+            elif hasattr(event, "get_message_str"):
+                try:
+                    full_text = str(event.get_message_str() or "")
+                except Exception:
+                    full_text = ""
+            command_match = re.search(r"传承挑战\s+(.+)", full_text)
+            if command_match:
+                msg = command_match.group(1).strip()
+
         # 匹配 @xxx 或纯数字
         at_match = re.search(r'\[CQ:at,qq=(\d+)\]', msg)
         if at_match:
             return at_match.group(1)
         
-        # 纯数字
+        # 纯数字 ID 模式：传承挑战 <用户ID>
         num_match = re.search(r'(\d{5,12})', msg)
         if num_match:
             return num_match.group(1)

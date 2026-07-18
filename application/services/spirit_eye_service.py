@@ -12,6 +12,9 @@ from ...infrastructure.repositories.spirit_eye_repo import SpiritEyeRepository
 
 class SpiritEyeService:
     """天地灵眼服务"""
+
+    # 无主灵眼超过该时间仍未被领取，视为过期并自动清理，避免长期占满生成槽位。
+    UNCLAIMED_EXPIRE_SECONDS = 5 * 3600
     
     # 灵眼配置
     SPIRIT_EYE_TYPES = {
@@ -30,6 +33,21 @@ class SpiritEyeService:
         self.player_repo = player_repo
         self.spirit_eye_repo = spirit_eye_repo
         self.config_manager = config_manager
+
+    def cleanup_expired_spirit_eyes(self) -> int:
+        """清理超过 5 小时仍未被领取的无主灵眼。
+
+        已被玩家占据的灵眼不会被清理；返回本次删除数量。
+        """
+        now = int(time.time())
+        expired_ids = [
+            eye.eye_id
+            for eye in self.spirit_eye_repo.get_available_spirit_eyes()
+            if now - eye.spawn_time >= self.UNCLAIMED_EXPIRE_SECONDS
+        ]
+        for eye_id in expired_ids:
+            self.spirit_eye_repo.delete(str(eye_id))
+        return len(expired_ids)
     
     def spawn_spirit_eye(self) -> str:
         """生成新灵眼（定时调用）"""
@@ -149,6 +167,9 @@ class SpiritEyeService:
     
     def get_spirit_eye_info(self, user_id: str) -> tuple[Optional[SpiritEyeInfo], List[SpiritEyeInfo]]:
         """获取灵眼信息"""
+        # 即使后台定时任务尚未轮到下一次检查，查询时也及时移除过期无主灵眼。
+        self.cleanup_expired_spirit_eyes()
+
         # 获取玩家
         player = self.player_repo.get_player(user_id)
         if not player:

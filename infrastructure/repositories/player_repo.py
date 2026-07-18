@@ -207,13 +207,28 @@ class PlayerRepository(BaseRepository[Player]):
         以后增加永久天赋、限时增益或特殊道具时，只需在这里追加来源，
         所有正常玩法的修为结算都会自动继承，无需逐个修改业务服务。
         """
-        if not self.equipment_repo:
-            return 0.0
         try:
-            equipped = self.equipment_repo.get_equipped_items(str(user_id))
-            if not equipped:
-                return 0.0
-            return max(-0.99, float(equipped.get_total_stats().exp_multiplier))
+            total_bonus = 0.0
+            equipped = self.equipment_repo.get_equipped_items(str(user_id)) if self.equipment_repo else None
+            if equipped:
+                total_bonus = float(equipped.get_total_stats().exp_multiplier)
+            player = self.get_by_id(str(user_id))
+            if player and player.storage_ring_items and self.equipment_repo and total_bonus > 0:
+                highest_equipped = total_bonus
+                for technique_name, count in player.storage_ring_items.items():
+                    if not count or not isinstance(technique_name, str):
+                        continue
+                    technique = self.equipment_repo.get_equipment_by_name(technique_name)
+                    if not technique or technique.subtype != "修炼心得":
+                        continue
+                    technique_bonus = float(technique.stats.exp_multiplier)
+                    if 0 < technique_bonus < highest_equipped:
+                        total_bonus += technique_bonus
+
+            # 洞天加成作为全局修为倍率，与功法/心得倍率相乘
+            land_data = self.storage.get("blessed_lands.json", str(user_id)) or {}
+            land_bonus = max(0.0, float(land_data.get("exp_bonus", 0.0) or 0.0))
+            return max(-0.99, (1.0 + total_bonus) * (1.0 + land_bonus) - 1.0)
         except Exception:
             return 0.0
 
@@ -374,6 +389,16 @@ class PlayerRepository(BaseRepository[Player]):
                 storage_ring_items = json.loads(storage_ring_items)
             except:
                 storage_ring_items = {}
+
+        # 解析最近一次秘境死亡遗失记录，兼容缺少字段的旧存档。
+        rift_death_recovery = data.get('rift_death_recovery', {})
+        if isinstance(rift_death_recovery, str):
+            try:
+                rift_death_recovery = json.loads(rift_death_recovery)
+            except (TypeError, ValueError, json.JSONDecodeError):
+                rift_death_recovery = {}
+        if not isinstance(rift_death_recovery, dict):
+            rift_death_recovery = {}
         
         return Player(
             user_id=data['user_id'],
@@ -404,7 +429,9 @@ class PlayerRepository(BaseRepository[Player]):
             sect_id=data.get('sect_id'),
             sect_position=data.get('sect_position'),
             level_up_rate=data.get('level_up_rate', 0),
+            active_pill_effects=data.get('active_pill_effects', {}) or {},
             death_immunity_charges=data.get('death_immunity_charges', 0),
+            rift_death_recovery=rift_death_recovery,
             alchemy_level=data.get('alchemy_level', 0),
             alchemy_exp=data.get('alchemy_exp', 0),
             created_at=created_at,
@@ -457,7 +484,9 @@ class PlayerRepository(BaseRepository[Player]):
             'sect_id': player.sect_id,
             'sect_position': player.sect_position,
             'level_up_rate': player.level_up_rate,
+            'active_pill_effects': player.active_pill_effects,
             'death_immunity_charges': player.death_immunity_charges,
+            'rift_death_recovery': player.rift_death_recovery,
             'alchemy_level': player.alchemy_level,
             'alchemy_exp': player.alchemy_exp,
             'created_at': TimestampConverter.to_iso8601(player.created_at),

@@ -24,6 +24,11 @@ class CombatStats:
     physical_defense: int = 0
     magic_defense: int = 0
     crit_damage: float = 1.5  # 暴击伤害倍率
+    speed: float = 0.0  # 先手速度
+    penetration_percent: float = 0.0  # 双属性穿透百分比，同时作用于物防和法防
+    damage_multiplier: float = 1.0  # PvE专属伤害倍率
+    defense_multiplier: float = 1.0  # PvE专属双抗倍率
+    target_weight: float = 1.0  # Boss选目标权重，装备等系统可覆盖
     damage_reduction_percent: float = 0.0  # Boss等单位的固定百分比减伤
     
     def is_alive(self) -> bool:

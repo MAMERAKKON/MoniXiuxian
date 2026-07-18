@@ -5,6 +5,7 @@
 """
 import json
 import random
+import re
 import time
 from typing import List, Dict, Optional, Tuple
 
@@ -12,6 +13,7 @@ from ...domain.models.bounty import Bounty, BountyTask
 from ...infrastructure.repositories.bounty_repo import BountyRepository
 from ...infrastructure.repositories.player_repo import PlayerRepository
 from ...infrastructure.repositories.storage_ring_repo import StorageRingRepository
+from ...infrastructure.repositories.reincarnation_repo import ReincarnationRepository
 from ...core.config import ConfigManager
 from ...core.exceptions import BusinessException
 
@@ -20,6 +22,15 @@ class BountyService:
     """悬赏服务"""
     
     BOUNTY_CACHE_DURATION = 600  # 任务列表缓存10分钟
+    STONE_REWARD_MULTIPLIER = 1.35
+    EXP_REWARD_MULTIPLIER = 1.25
+    MERIT_REWARDS = {"easy": (4, 7), "normal": (7, 11), "hard": (11, 16), "elite": (16, 24)}
+    MERIT_EXCHANGE_COST = 10
+    MERIT_EXCHANGE_LIMIT = 10
+    MERIT_EXCHANGE_BONUS = {
+        "crit_rate_percent": ("暴击率", 0.005),
+        "crit_damage_percent": ("暴击伤害", 0.01),
+    }
     
     def __init__(
         self,
@@ -27,6 +38,7 @@ class BountyService:
         player_repo: PlayerRepository,
         storage_ring_repo: StorageRingRepository,
         config_manager: ConfigManager,
+        reincarnation_repo: ReincarnationRepository,
     ):
         """
         初始化悬赏服务
@@ -41,6 +53,7 @@ class BountyService:
         self.player_repo = player_repo
         self.storage_ring_repo = storage_ring_repo
         self.config_manager = config_manager
+        self.reincarnation_repo = reincarnation_repo
         self._bounty_cache: Dict[str, Dict] = {}
         
         # 加载配置
@@ -204,8 +217,15 @@ class BountyService:
         stone_scale = diff_cfg.get("stone_scale", 1.0)
         exp_scale = diff_cfg.get("exp_scale", 1.0)
         
-        final_stone = int(stone * stone_scale * progress_factor * level_bonus)
-        final_exp = int(exp * exp_scale * progress_factor * level_bonus)
+        # 悬赏需要完成历练/秘境进度，基础奖励略低于单独玩法；提高固定倍率后仍不会超过 Boss 奖励。
+        final_stone = int(
+            stone * stone_scale * progress_factor * level_bonus
+            * self.STONE_REWARD_MULTIPLIER
+        )
+        final_exp = int(
+            exp * exp_scale * progress_factor * level_bonus
+            * self.EXP_REWARD_MULTIPLIER
+        )
         
         return {"stone": final_stone, "exp": final_exp}
     
@@ -251,6 +271,10 @@ class BountyService:
         
         # 创建任务
         expire_time = now + cached.time_limit
+        reward_payload = dict(cached.reward)
+        reward_payload["_item_table"] = cached.item_table
+        merit_min, merit_max = self.MERIT_REWARDS.get(cached.difficulty, (4, 7))
+        reward_payload["merit"] = random.randint(merit_min, merit_max)
         task = BountyTask(
             user_id=user_id,
             bounty_id=bounty_id,
@@ -258,7 +282,7 @@ class BountyService:
             target_type=cached.category,
             target_count=cached.count,
             current_progress=0,
-            rewards=json.dumps(cached.reward, ensure_ascii=False),
+            rewards=json.dumps(reward_payload, ensure_ascii=False),
             start_time=now,
             expire_time=expire_time,
             status=1  # 进行中
@@ -271,6 +295,7 @@ class BountyService:
             f"任务：{cached.name}（{cached.difficulty_name}）\n"
             f"目标：完成 {cached.count} 次\n"
             f"奖励：{cached.reward['stone']:,} 灵石 + {cached.reward['exp']:,} 修为\n"
+            f"悬赏战功：{reward_payload['merit']} 点\n"
             f"时限：{cached.time_limit // 60} 分钟"
         )
     
@@ -335,6 +360,8 @@ class BountyService:
         rewards = json.loads(active.rewards)
         stone_reward = rewards.get("stone", 0)
         exp_reward = rewards.get("exp", 0)
+        item_table_name = rewards.get("_item_table", "")
+        merit_reward = int(rewards.get("merit", 0) or 0)
         
         player = self.player_repo.get_by_id(user_id)
         if not player:
@@ -347,20 +374,93 @@ class BountyService:
         
         player.gold += stone_reward
         player.experience += exp_reward
+
+        if merit_reward > 0:
+            pool = self.reincarnation_repo.get_reincarnation_pool(user_id)
+            if pool is None:
+                pool = self.reincarnation_repo.create_reincarnation_pool(user_id)
+            pool.bounty_merit += merit_reward
+            self.reincarnation_repo.save(pool)
+
+        # 结算一件按悬赏类型加权抽取的物品，修复原先 item_table 只配置但从未发放的问题。
+        item_reward = None
+        item_table = self.item_tables.get(item_table_name, [])
+        if item_table:
+            total_weight = sum(float(item.get("weight", 0)) for item in item_table)
+            if total_weight > 0:
+                roll = random.uniform(0, total_weight)
+                cumulative = 0.0
+                for item in item_table:
+                    cumulative += float(item.get("weight", 0))
+                    if roll <= cumulative:
+                        item_name = item.get("name")
+                        count = random.randint(
+                            int(item.get("min", 1)), int(item.get("max", 1))
+                        )
+                        if item_name and count > 0:
+                            self.storage_ring_repo.add_item(user_id, item_name, count)
+                            item_reward = (item_name, count)
+                        break
         self.player_repo.save(player)
         
         # 更新任务状态
         self.bounty_repo.update_task_status(user_id, 2)  # 已完成
         
-        # TODO: 物品奖励
-        
+        item_msg = ""
+        if item_reward:
+            item_msg = f"\n获得物品：{item_reward[0]} ×{item_reward[1]}"
+
         return (
             f"✅ 悬赏完成！\n"
             f"任务：{active.bounty_name}\n"
             f"━━━━━━━━━━━━━━━\n"
             f"获得灵石：+{stone_reward:,}\n"
-            f"获得修为：+{exp_reward:,}"
+            f"获得修为：+{exp_reward:,}{item_msg}"
+            f"\n获得悬赏战功：+{merit_reward}"
         )
+
+    def exchange_merit(self, user_id: str, target: str) -> str:
+        raw_target = str(target or "").strip()
+        quantity = 1
+        match = re.match(r"^(.+?)(?:\s+|)(\d+)$", raw_target)
+        if match:
+            raw_target = match.group(1).strip()
+            quantity = int(match.group(2))
+        if quantity <= 0:
+            raise BusinessException("兑换次数必须是正整数")
+        """使用本世悬赏战功兑换一次暴击属性。"""
+        aliases = {
+            "暴击率": "crit_rate_percent", "暴击": "crit_rate_percent", "crit_rate": "crit_rate_percent",
+            "暴击伤害": "crit_damage_percent", "爆伤": "crit_damage_percent", "crit_damage": "crit_damage_percent",
+        }
+        key = aliases.get(raw_target.lower())
+        if not key:
+            raise BusinessException("兑换目标只能是：暴击率 或 暴击伤害")
+        pool = self.reincarnation_repo.get_reincarnation_pool(user_id)
+        if pool is None:
+            pool = self.reincarnation_repo.create_reincarnation_pool(user_id)
+        count = int(pool.bounty_exchange_counts.get(key, 0))
+        remaining_count = self.MERIT_EXCHANGE_LIMIT - count
+        if remaining_count <= 0:
+            raise BusinessException(f"本世{self.MERIT_EXCHANGE_BONUS[key][0]}兑换次数已达上限（10次）")
+        if quantity > remaining_count:
+            raise BusinessException(f"本次最多还能兑换{remaining_count}次（本世上限10次）")
+        total_cost = self.MERIT_EXCHANGE_COST * quantity
+        if pool.bounty_merit < total_cost:
+            raise BusinessException(f"悬赏战功不足，需要{total_cost}点，当前{pool.bounty_merit}点")
+        pool.bounty_merit -= total_cost
+        pool.bounty_exchange_counts[key] = count + quantity
+        pool.current_life_pool[key] = pool.current_life_pool.get(key, 0.0) + self.MERIT_EXCHANGE_BONUS[key][1] * quantity
+        self.reincarnation_repo.save(pool)
+        label, value = self.MERIT_EXCHANGE_BONUS[key]
+        if quantity != 1:
+            return (
+                f"兑换成功：本世传承{label}+{value * quantity * 100:.1f}%（本次{quantity}次，{count + quantity}/10）"
+                f"\n消耗悬赏战功：{total_cost}点"
+                f"\n剩余悬赏战功：{pool.bounty_merit}点"
+            )
+            return f"兑换成功：本世传承{label}+{value * quantity * 100:.1f}%（本次{quantity}次，{count + quantity}/10）\\n消耗悬赏战功：{total_cost}点\\n剩余悬赏战功：{pool.bounty_merit}点"
+        return f"兑换成功：本世传承{label}+{value * 100:.1f}%（{count + 1}/10）\n剩余悬赏战功：{pool.bounty_merit}点"
     
     def abandon_bounty(self, user_id: str) -> str:
         """

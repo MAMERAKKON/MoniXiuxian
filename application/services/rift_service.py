@@ -18,6 +18,7 @@ class RiftService:
     
     # 默认探索时长（秒）
     DEFAULT_DURATION = 1800  # 30分钟
+    RIFT_GOLD_REWARD_MULTIPLIER = 1.5
     
     # 秘境物品掉落表（按秘境等级分组）
     RIFT_DROP_TABLE = {
@@ -64,8 +65,8 @@ class RiftService:
             "功法": [
                 {"name": "长春功残篇", "weight": 70},
                 {"name": "御风诀残篇", "weight": 28},
-                {"name": "长春功", "weight": 1},  # 完整功法，极低概率（5个残篇合成）
-                {"name": "御风诀", "weight": 1},  # 完整功法，极低概率（5个残篇合成）
+                {"name": "长春功", "weight": 1},  # 完整功法，极低概率（10个残篇合成）
+                {"name": "御风诀", "weight": 1},  # 完整功法，极低概率（10个残篇合成）
             ],
         },
         2: {  # 中级秘境 - 珍品
@@ -134,9 +135,9 @@ class RiftService:
     
     # 功法残篇合成配置
     TECHNIQUE_SYNTHESIS = {
-        # 凡品功法 - 5个残篇合成
-        "长春功": {"fragment": "长春功残篇", "required": 5, "tier": "凡品"},
-        "御风诀": {"fragment": "御风诀残篇", "required": 5, "tier": "凡品"},
+        # 凡品功法 - 10个残篇合成（与储物戒统一配置一致）
+        "长春功": {"fragment": "长春功残篇", "required": 10, "tier": "凡品"},
+        "御风诀": {"fragment": "御风诀残篇", "required": 10, "tier": "凡品"},
         # 珍品功法 - 10个残篇合成
         "不动明王经": {"fragment": "不动明王经残篇", "required": 10, "tier": "珍品"},
         "北冥神功": {"fragment": "北冥神功残篇", "required": 10, "tier": "珍品"},
@@ -246,7 +247,22 @@ class RiftService:
             extra_data=json.dumps(extra_data)
         )
         
-        return f"✨ 你进入了『{rift.rift_name}』！探索需要 {self.explore_duration//60} 分钟。\n使用【完成探索】领取奖励"
+        message = (
+            f"✨ 你进入了『{rift.rift_name}』！"
+            f"探索需要 {self.explore_duration//60} 分钟。\n"
+            "使用【完成探索】领取奖励"
+        )
+        recovery = player.rift_death_recovery or {}
+        if recovery.get("rift_id") == rift.rift_id:
+            recoverable_exp = max(0, int(recovery.get("experience", 0) or 0))
+            recoverable_gold = max(0, int(recovery.get("gold", 0) or 0))
+            message += (
+                "\n\n🧭 你感应到了上次死亡遗留的道痕！\n"
+                f"成功完成本次探索可取回修为 {recoverable_exp:,}、"
+                f"灵石 {recoverable_gold:,}。\n"
+                "若再次死于秘境，旧道痕将被最新损失覆盖。"
+            )
+        return message
     
     def finish_exploration(self, user_id: str) -> RiftResult:
         """完成秘境探索"""
@@ -307,8 +323,20 @@ class RiftService:
                     lost_exp = player.experience
                     lost_gold = player.gold
                     
-                    # 死亡惩罚：重置玩家（保留角色，清空修为和灵石）
-                    self.player_repo.reset_player(user_id)
+                    # 只保留最近一次秘境死亡损失；新死亡会覆盖尚未取回的旧记录。
+                    player.rift_death_recovery = {
+                        "rift_id": rift.rift_id,
+                        "rift_name": rift_name,
+                        "experience": max(0, int(lost_exp)),
+                        "gold": max(0, int(lost_gold)),
+                        "lost_at": int(time.time()),
+                    }
+
+                    # 死亡惩罚：保留角色，清空修为和灵石，并原子保存遗失记录。
+                    player.experience = 0
+                    player.gold = 0
+                    player.state = PlayerState.IDLE
+                    self.player_repo.save(player, force_state=True)
                     
                     death_penalty = {
                         "reset": True,
@@ -322,7 +350,12 @@ class RiftService:
                         exp_gained=0,
                         gold_gained=0,
                         items_gained=[],
-                        event_description=f"💀 你在『{rift_name}』中遭遇不测！（死亡率：{death_rate:.1f}%）\n你失去了所有修为和灵石，但侥幸保住了性命...",
+                        event_description=(
+                            f"💀 你在『{rift_name}』中遭遇不测！"
+                            f"（死亡率：{death_rate:.1f}%）\n"
+                            "你失去了所有修为和灵石，但侥幸保住了性命……\n"
+                            "这些损失已化作道痕留在此秘境；下次成功完成同一秘境可全部取回。"
+                        ),
                         death_occurred=True,
                         death_penalty=death_penalty
                     )
@@ -330,7 +363,7 @@ class RiftService:
         # 计算奖励
         if rift:
             exp_reward = random.randint(rift.exp_reward_min, rift.exp_reward_max)
-            gold_reward = random.randint(rift.gold_reward_min, rift.gold_reward_max)
+            gold_reward = int(random.randint(rift.gold_reward_min, rift.gold_reward_max) * self.RIFT_GOLD_REWARD_MULTIPLIER)
             rift_level = rift.rift_level
         else:
             # 兼容旧数据
@@ -347,6 +380,18 @@ class RiftService:
         player = self.player_repo.get_by_id(user_id)
         if not player:
             raise BusinessException("玩家不存在")
+
+        # 死亡判定已经通过后，才允许取回最近一次同秘境死亡损失。
+        # 返还不是新的修为收益，因此不经过功法/心得倍率。
+        recovered_exp = 0
+        recovered_gold = 0
+        recovery = player.rift_death_recovery or {}
+        if rift and recovery.get("rift_id") == rift.rift_id:
+            recovered_exp = max(0, int(recovery.get("experience", 0) or 0))
+            recovered_gold = max(0, int(recovery.get("gold", 0) or 0))
+            player.experience += recovered_exp
+            player.gold += recovered_gold
+            player.rift_death_recovery = {}
         
         # 发放奖励
         exp_reward = self.player_repo.calculate_experience_reward(
@@ -423,7 +468,9 @@ class RiftService:
             items_gained=items_gained,
             event_description=event_desc,
             death_occurred=False,
-            death_penalty=None
+            death_penalty=None,
+            recovered_exp=recovered_exp,
+            recovered_gold=recovered_gold
         )
     
     def exit_rift(self, user_id: str) -> str:

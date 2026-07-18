@@ -3,6 +3,7 @@ import json
 from typing import List, Dict, Optional
 
 from ...core.config import ConfigManager
+from ...core.constants import ECONOMY_OWNER_ID
 from ...infrastructure.repositories.player_repo import PlayerRepository
 from ...infrastructure.repositories.storage_ring_repo import StorageRingRepository
 from ...infrastructure.repositories.spirit_field_repo import SpiritFieldRepository
@@ -14,13 +15,13 @@ class SeedShopService:
     
     # 成熟时间配置(秒)
     GROW_TIME_CONFIG = {
-        "凡品": {"min": 3600, "max": 7200},      # 1-2小时
-        "珍品": {"min": 21600, "max": 43200},    # 6-12小时
-        "圣品": {"min": 86400, "max": 259200},   # 1-3天
-        "帝品": {"min": 432000, "max": 604800},  # 5-7天
-        "道品": {"min": 864000, "max": 864000},  # 10天
-        "仙品": {"min": 1296000, "max": 1296000},  # 15天
-        "神品": {"min": 1728000, "max": 1728000}   # 20天
+        "凡品": {"min": 60, "max": 120},
+        "珍品": {"min": 360, "max": 720},
+        "圣品": {"min": 1440, "max": 4320},
+        "帝品": {"min": 7200, "max": 10080},
+        "道品": {"min": 14400, "max": 14400},
+        "仙品": {"min": 21600, "max": 21600},
+        "神品": {"min": 28800, "max": 28800}
     }
     
     # 种子解锁配置
@@ -244,6 +245,8 @@ class SeedShopService:
         
         # 扣除灵石
         self.player_repo.add_gold(user_id, -total_cost)
+        if total_cost > 0:
+            self.player_repo.add_gold(ECONOMY_OWNER_ID, total_cost)
         
         # 添加种子到储物袋
         self.storage_ring_repo.add_item(user_id, f"{herb_name}种子", quantity)

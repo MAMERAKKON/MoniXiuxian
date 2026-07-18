@@ -72,7 +72,8 @@ class CombatService:
     async def prepare_combat_stats(
         self,
         user_id: str,
-        use_current_hp: bool = False
+        use_current_hp: bool = False,
+        pve_mode: bool = False
     ) -> Optional[CombatStats]:
         """
         根据玩家真实属性、修炼类型和装备生成战斗快照。
@@ -112,6 +113,28 @@ class CombatService:
             else magic_defense
         )
         mp = player.mental_power + equipment.mental_power
+        # 灵修更擅长感知与抢先手，体修以稳定和承伤为主。
+        speed = player.calculate_speed(getattr(equipment, "speed", 0))
+
+        # 灵修的高阶成长方向是暴击转化为双属性穿透；体修不额外获得穿透，
+        # 通过双抗承伤。穿透同时作用于物防和法防，避免只克制单一流派。
+        penetration = 0.0
+        damage_multiplier = 1.0
+        defense_multiplier = 1.0
+        target_weight = 1.0
+        if pve_mode and player.cultivation_type == CultivationType.SPIRITUAL:
+            damage_multiplier = 1.25
+        elif pve_mode and player.cultivation_type == CultivationType.PHYSICAL:
+            defense_multiplier = 1.5
+            target_weight = 2.0
+        if pve_mode:
+            target_weight = max(0.1, target_weight + float(getattr(equipment, "target_weight", 0.0)))
+        if player.cultivation_type == CultivationType.SPIRITUAL:
+            crit_damage_excess = max(0.0, (self.BASE_CRIT_DAMAGE + crit_damage_bonus) - 1.5)
+            penetration = min(
+                30.0,
+                crit_rate * 0.15 + crit_damage_excess * 100.0 * 0.10
+            )
 
         return CombatStats(
             user_id=user_id,
@@ -127,7 +150,12 @@ class CombatService:
             damage_type=damage_type,
             physical_defense=max(0, int(physical_defense)),
             magic_defense=max(0, int(magic_defense)),
-            crit_damage=max(1.0, self.BASE_CRIT_DAMAGE + crit_damage_bonus)
+            crit_damage=max(1.0, self.BASE_CRIT_DAMAGE + crit_damage_bonus),
+            speed=speed,
+            penetration_percent=penetration,
+            damage_multiplier=damage_multiplier,
+            defense_multiplier=defense_multiplier,
+            target_weight=target_weight
         )
 
     @staticmethod
@@ -213,7 +241,11 @@ class CombatService:
             attacker.crit_damage
         )
         defense = defender.get_defense_against(attacker.damage_type)
-        damage = CombatService.apply_damage_reduction(raw_damage, defense)
+        penetration = min(100.0, max(0.0, float(attacker.penetration_percent)))
+        effective_defense = int(defense * (1.0 - penetration / 100.0))
+        raw_damage = max(1, int(raw_damage * max(0.0, attacker.damage_multiplier)))
+        effective_defense = int(effective_defense * max(0.0, defender.defense_multiplier))
+        damage = CombatService.apply_damage_reduction(raw_damage, effective_defense)
         reduction_percent = min(
             100.0,
             max(0.0, float(defender.damage_reduction_percent))
@@ -253,8 +285,11 @@ class CombatService:
             format_stats(player2)
         ]
 
-        if randomize_first and random.random() >= 0.5:
-            first, second = player2, player1
+        if randomize_first:
+            if player1.speed == player2.speed:
+                first, second = (player2, player1) if random.random() >= 0.5 else (player1, player2)
+            else:
+                first, second = (player1, player2) if player1.speed > player2.speed else (player2, player1)
         else:
             first, second = player1, player2
         combat_log.append(f"先手：{first.name}")
@@ -345,6 +380,11 @@ class CombatService:
             combat_log=json.dumps(result.combat_log, ensure_ascii=False)
         )
         await self.update_combat_cooldown(attacker_id, combat_type)
+        # 属性丹药只持续到下一场战斗结束，切磋/决斗均在结算后清除。
+        for combatant_id in (attacker_id, defender_id):
+            combatant = self.player_repo.get_by_id(combatant_id)
+            if combatant and combatant.clear_pill_buffs():
+                self.player_repo.save(combatant)
         return result
 
     async def execute_spar(self, attacker_id: str, defender_id: str) -> CombatResult:

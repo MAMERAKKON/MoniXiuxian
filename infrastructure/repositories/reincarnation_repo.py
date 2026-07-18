@@ -112,6 +112,22 @@ class ReincarnationRepository(BaseRepository[ReincarnationPool]):
         if not pool:
             return 0
         return pool.get_reincarnation_count()
+
+    def set_retained_assets(self, user_id: str, assets: Dict[str, Dict[str, int]]) -> None:
+        pool = self.get_reincarnation_pool(user_id)
+        if not pool:
+            pool = self.create_reincarnation_pool(user_id)
+        pool.retained_assets = deepcopy(assets or {})
+        self.save(pool)
+
+    def consume_retained_assets(self, user_id: str) -> Dict[str, Dict[str, int]]:
+        pool = self.get_reincarnation_pool(user_id)
+        if not pool or not pool.retained_assets:
+            return {}
+        assets = deepcopy(pool.retained_assets)
+        pool.retained_assets = {}
+        self.save(pool)
+        return assets
     
     def get_ranking(self, limit: int = 10) -> List[tuple]:
         """
@@ -178,6 +194,12 @@ class ReincarnationRepository(BaseRepository[ReincarnationPool]):
             }),
             reincarnation_count=data.get("reincarnation_count", 0),
             last_reincarnation_time=TimestampConverter.from_iso8601(data.get("last_reincarnation_time"))
+            ,retained_assets=data.get("retained_assets", {})
+            ,bounty_merit=int(data.get("bounty_merit", 0) or 0)
+            ,bounty_exchange_counts={
+                "crit_rate_percent": int(data.get("bounty_exchange_counts", {}).get("crit_rate_percent", 0) or 0),
+                "crit_damage_percent": int(data.get("bounty_exchange_counts", {}).get("crit_damage_percent", 0) or 0),
+            }
         )
     
     def _to_dict(self, pool: ReincarnationPool) -> Dict[str, Any]:
@@ -188,4 +210,7 @@ class ReincarnationRepository(BaseRepository[ReincarnationPool]):
             "current_life_pool": pool.current_life_pool,
             "reincarnation_count": pool.reincarnation_count,
             "last_reincarnation_time": TimestampConverter.to_iso8601(pool.last_reincarnation_time)
+            ,"retained_assets": pool.retained_assets
+            ,"bounty_merit": int(pool.bounty_merit)
+            ,"bounty_exchange_counts": pool.bounty_exchange_counts
         }

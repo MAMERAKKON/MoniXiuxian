@@ -32,6 +32,7 @@ class BountyHandler:
                     f"[{b.id}] {b.name}（{b.difficulty_name}·{b.category}）\n"
                     f"  - 目标：完成 {b.count} 次 | 时限：{time_limit_min} 分钟\n"
                     f"  - 奖励：{reward['stone']:,} 灵石 + {reward['exp']:,} 修为\n"
+                    f"  - 悬赏战功：{self.bounty_service.MERIT_REWARDS.get(b.difficulty, (4, 7))[0]}～{self.bounty_service.MERIT_REWARDS.get(b.difficulty, (4, 7))[1]}点\n"
                     f"  - 说明：{b.description}"
                 )
             
@@ -104,3 +105,23 @@ class BountyHandler:
             yield event.plain_result(str(e))
         except Exception as e:
             yield event.plain_result(f"放弃悬赏失败：{e}")
+
+    async def handle_merit_exchange(self, event: AstrMessageEvent, target: str = "") -> AsyncGenerator:
+        try:
+            # 部分适配器只把第一个空格参数注入 target；从原始消息补回兑换数量。
+            full_text = ""
+            if hasattr(event, "message_str"):
+                full_text = str(event.message_str or "")
+            elif hasattr(event, "get_message_str"):
+                full_text = str(event.get_message_str() or "")
+            command_text = "悬赏战功兑换"
+            if command_text in full_text:
+                target = full_text.split(command_text, 1)[1].strip()
+            if not target:
+                yield event.plain_result("用法：悬赏战功兑换 暴击率/暴击伤害 [次数]；例如：悬赏战功兑换 暴击伤害 10（每项每世最多10次，每次消耗10点战功）")
+                return
+            yield event.plain_result(self.bounty_service.exchange_merit(event.get_sender_id(), target))
+        except GameException as e:
+            yield event.plain_result(str(e))
+        except Exception as e:
+            yield event.plain_result(f"悬赏战功兑换失败：{e}")

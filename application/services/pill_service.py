@@ -12,6 +12,7 @@ from ...infrastructure.repositories.player_repo import PlayerRepository
 from ...infrastructure.repositories.storage_ring_repo import StorageRingRepository
 from ...core.config import ConfigManager
 from ...core.exceptions import BusinessException
+from ...infrastructure.repositories.reincarnation_repo import ReincarnationRepository
 
 
 class PillService:
@@ -22,6 +23,7 @@ class PillService:
         player_repo: PlayerRepository,
         storage_ring_repo: StorageRingRepository,
         config_manager: ConfigManager,
+        reincarnation_repo: Optional[ReincarnationRepository] = None,
     ):
         """
         初始化丹药服务
@@ -34,6 +36,7 @@ class PillService:
         self.player_repo = player_repo
         self.storage_ring_repo = storage_ring_repo
         self.config_manager = config_manager
+        self.reincarnation_repo = reincarnation_repo
     
     def get_pill_inventory(self, user_id: str) -> Dict[str, int]:
         """
@@ -135,9 +138,15 @@ class PillService:
         # 先从 pills.json（突破丹药）中查找
         pills_config = self.config_manager.get_config("pills")
         if pills_config:
-            # 遍历所有突破丹药配置
-            for pill_id, pill_data in pills_config.items():
-                if pill_data.get("name") == pill_name:
+            # pills.json 在不同版本中可能是字典或列表，统一兼容两种格式。
+            if isinstance(pills_config, dict):
+                pill_values = pills_config.values()
+            elif isinstance(pills_config, list):
+                pill_values = pills_config
+            else:
+                pill_values = []
+            for pill_data in pill_values:
+                if isinstance(pill_data, dict) and pill_data.get("name") == pill_name:
                     return pill_data
         
         # 再从 items.json（通用物品，包含各种丹药）中查找
@@ -193,6 +202,26 @@ class PillService:
                 f"【{pill_name}】是突破专用丹药，不能直接服用！\n"
                 f"💡 请使用：突破 {pill_name}"
             )
+
+        # 属性丹药只允许同名丹药同时生效一次，避免批量服用造成无限叠加。
+        # 只记录战斗/突破属性；回血、修为等一次性效果仍可正常使用。
+        temporary_keys = {
+            "add_max_hp", "add_spiritual_power", "add_mental_power",
+            "add_attack", "add_defense",
+        }
+        temporary_effect = {
+            key: value for key, value in pill_effect.items()
+            if key in temporary_keys and value
+        }
+        if temporary_effect:
+            if pill_name in (player.active_pill_effects or {}):
+                raise BusinessException(
+                    f"【{pill_name}】的属性增益已经生效，完成下一场战斗后才能再次服用。"
+                )
+            if quantity != 1:
+                raise BusinessException(
+                    f"【{pill_name}】包含暂时属性增益，每次只能服用1枚；战斗结束后才会清除。"
+                )
         
         # 检查境界需求
         required_level = pill_config.get("required_level_index", 0)
@@ -222,6 +251,19 @@ class PillService:
                 )
         
         # 批量应用丹药效果
+        if "add_breakthrough_bonus" in pill_effect and self.reincarnation_repo:
+            pool = self.reincarnation_repo.get_reincarnation_pool(str(player.user_id))
+            reincarnation_count = pool.reincarnation_count if pool else 0
+            if reincarnation_count >= 4:
+                current_bonus = max(0, int(player.level_up_rate or 0))
+                single_bonus = max(1, int(float(pill_effect["add_breakthrough_bonus"]) * 100))
+                max_total_bonus = 50
+                if current_bonus + single_bonus * quantity > max_total_bonus:
+                    raise BusinessException(
+                        f"你当前已是第{reincarnation_count}世，通用突破丹累计加成上限为+{max_total_bonus}%；"
+                        f"当前已有+{current_bonus}%，本次最多还能增加+{max(0, max_total_bonus - current_bonus)}%。"
+                    )
+
         total_effects = {}
         for i in range(quantity):
             effects = self._calculate_pill_effects(player, pill_config)
@@ -231,6 +273,13 @@ class PillService:
         
         # 应用累计效果
         message = self._apply_accumulated_effects(player, pill_name, pill_config, total_effects, quantity)
+
+        if temporary_effect:
+            player.active_pill_effects[pill_name] = {
+                key: total_effects[key] for key in temporary_keys
+                if total_effects.get(key)
+            }
+            message += "\n⏳ 本次属性增益将在下一场战斗结束后清除。"
         
         # 从储物戒扣除丹药
         if pill_name in player.storage_ring_items:

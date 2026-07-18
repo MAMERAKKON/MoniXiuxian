@@ -256,10 +256,25 @@ class StorageRingService:
                 for data in items_config.values()
                 if data.get("name")
             }
+
+        # weapons.json / pills.json 也是正式物品来源，不能只依赖 items.json。
+        # 否则武器会因名称不含关键词而被错误归入“其他/材料”。
+        pills_config = self._load_config("pills.json")
+        if isinstance(pills_config, list):
+            for pill in pills_config:
+                if pill.get("name"):
+                    configured_types[pill["name"]] = "丹药"
+
+        weapons_config = self._load_config("weapons.json")
+        if isinstance(weapons_config, list):
+            for weapon in weapons_config:
+                if weapon.get("name"):
+                    configured_types[weapon["name"]] = "法器"
         
         for item_name, count in items.items():
-            if configured_types.get(item_name) == "丹药":
-                result["丹药"].append((item_name, count))
+            configured_type = configured_types.get(item_name)
+            if configured_type in result:
+                result[configured_type].append((item_name, count))
                 continue
 
             categorized = False
@@ -570,16 +585,39 @@ class StorageRingService:
         if price is None:
             price = data.get("gold_cost")
 
+        # 旧版独立配置使用英文类型，百科统一显示为游戏内中文分类。
+        item_type = data.get("type", "其他")
+        subtype = data.get("subtype")
+        weapon_category = data.get("weapon_category")
+        if not weapon_category and subtype == "武器":
+            name_text = str(data.get("name", ""))
+            weapon_category = next(
+                (token for token in ("匕首", "阔刀", "剑", "刀", "枪", "棍", "弓", "琴", "符箓", "笔", "鼎") if token in name_text),
+                "未分类武器",
+            )
+        if source == "weapons.json" or item_type == "weapon":
+            item_type = "法器"
+            subtype = subtype or "武器"
+        elif source == "pills.json" and item_type == "pill":
+            item_type = "丹药"
+            # pills.json 的旧字段 subtype 使用英文枚举，百科不直接暴露内部值。
+            subtype = {
+                "breakthrough": "突破丹",
+                "exp": "修为丹",
+                "utility": "功能丹",
+            }.get(str(subtype).lower(), subtype)
+
         return {
             "id": str(item_id),
             "name": data.get("name", "未知物品"),
-            "type": data.get("type", "其他"),
-            "subtype": data.get("subtype"),
+            "type": item_type,
+            "subtype": subtype,
             "rank": data.get("rank"),
             "price": price,
             "description": data.get("description", ""),
             "required_level_index": data.get("required_level_index"),
             "target_level_index": data.get("target_level_index"),
+            "weapon_category": weapon_category,
             "source": source,
             "data": data,
         }
@@ -628,6 +666,49 @@ class StorageRingService:
             效果描述字符串
         """
         effects = []
+        # 武器百科与装备读取层保持同一套流派归一化规则。
+        if data.get("weapon_category") or data.get("subtype") == "武器":
+            data = dict(data)
+            category = data.get("weapon_category", "")
+            if not category:
+                category = "magic_weapon" if any(
+                    ch in str(data.get("name", "")) for ch in ("符", "琴", "笔")
+                ) else "physical_weapon"
+            physical_categories = {"\u5251", "\u5200", "\u9614\u5200", "\u5323\u9996", "\u68cd", "\u67aa"}
+            magic_categories = {"\u7434", "\u7b26\u7b94", "\u6bdb\u7b14"}
+            physical_categories = {chr(0x5251), chr(0x5200), chr(0x9614), chr(0x5323), chr(0x68cd), chr(0x67aa)}
+            magic_categories = {chr(0x7434), chr(0x7b26), chr(0x6bdb)}
+            if category == "physical_weapon" or category in physical_categories:
+                data["magic_damage"] = 0
+            elif category == "magic_weapon" or category in magic_categories:
+                data["physical_damage"] = 0
+            level_index = int(data.get("required_level_index", 0) or 0)
+            if "speed" not in data:
+                if category == "\u5323\u9996":
+                    data["speed"] = max(2, int(2 + level_index * 0.12))
+                elif category == "\u9614\u5200":
+                    data["speed"] = -max(1, int(1 + level_index * 0.05))
+                elif category in {"\u5251", "\u67aa", "\u7434", "\u6bdb\u7b14"}:
+                    data["speed"] = max(1, int(1 + level_index * 0.06))
+                else:
+                    data["speed"] = 0
+            if category == chr(0x5323):
+                data["speed"] = max(2, int(2 + level_index * 0.12))
+            elif category == chr(0x9614):
+                data["speed"] = -max(1, int(1 + level_index * 0.05))
+            elif category in {chr(0x5251), chr(0x67aa), chr(0x7434), chr(0x6bdb)}:
+                data["speed"] = max(1, int(1 + level_index * 0.06))
+            if category in {"physical_weapon", "magic_weapon"}:
+                data["speed"] = max(1, int(1 + level_index * 0.06))
+            if "target_weight" not in data:
+                if category == "\u9614\u5200":
+                    data["target_weight"] = round(0.15 + level_index * 0.01, 2)
+                elif category == "\u68cd":
+                    data["target_weight"] = round(0.10 + level_index * 0.006, 2)
+                elif category == "\u9f0e":
+                    data["target_weight"] = round(0.20 + level_index * 0.012, 2)
+                else:
+                    data["target_weight"] = 0.0
 
         def add_delta(label: str, value, suffix: str = ""):
             if value is None or value == 0:
@@ -665,16 +746,21 @@ class StorageRingService:
         add_delta("精神力", data.get('mental_power'))
         if not data.get('effect'):
             add_delta("气血上限", data.get('max_hp'))
+            add_delta("灵气上限", data.get('spiritual_qi'))
         if data.get('exp_multiplier'):
-            add_delta("修炼倍率", int(data['exp_multiplier'] * 100), "%")
+            add_delta("修炼效率", int(data['exp_multiplier'] * 100), "%")
         
         # 旧版装备效果
+        if data.get("speed", 0):
+            add_delta("速度", data.get("speed"))
+        if data.get("target_weight", 0):
+            add_delta("Boss吸引权重", data.get("target_weight"))
         if data.get('equip_effects'):
             equip_effects = data['equip_effects']
             if equip_effects.get('attack'):
-                effects.append(f"攻击+{equip_effects['attack']}")
+                effects.append(f"攻击力+{equip_effects['attack']}")
             if equip_effects.get('defense'):
-                effects.append(f"防御+{equip_effects['defense']}")
+                effects.append(f"防御力+{equip_effects['defense']}")
         
         return "、".join(effects) if effects else "无"
     

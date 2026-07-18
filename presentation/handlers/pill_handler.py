@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 from astrbot.api.event import AstrMessageEvent
 
 from ...application.services.pill_service import PillService
+from ...application.services.breakthrough_service import BreakthroughService
 from ...core.exceptions import BusinessException
 from ..decorators import require_player
 
@@ -14,7 +15,7 @@ from ..decorators import require_player
 class PillHandler:
     """丹药处理器"""
     
-    def __init__(self, pill_service: PillService, player_service):
+    def __init__(self, pill_service: PillService, player_service, breakthrough_service: BreakthroughService = None):
         """
         初始化丹药处理器
         
@@ -24,6 +25,7 @@ class PillHandler:
         """
         self.pill_service = pill_service
         self.player_service = player_service
+        self.breakthrough_service = breakthrough_service
     
     @require_player
     async def handle_show_pills(self, event: AstrMessageEvent, player) -> AsyncGenerator[str, None]:
@@ -81,6 +83,25 @@ class PillHandler:
                 except ValueError:
                     yield event.plain_result("❌ 数量必须是数字")
                     return
+
+            # 统一丹药入口：突破专用丹直接用于本次突破。
+            pill_config = self.pill_service.get_pill_config(pill_name)
+            if pill_config and pill_config.get("subtype") == "breakthrough":
+                if use_quantity != 1:
+                    yield event.plain_result("❌ 突破丹每次突破只能使用一枚")
+                    return
+                if not self.breakthrough_service:
+                    yield event.plain_result("❌ 突破服务未初始化，请使用：突破 <丹药名>")
+                    return
+                result = self.breakthrough_service.execute_breakthrough(player, pill_name)
+                if result.died:
+                    outcome = "💀 突破失败并触发死亡。"
+                elif result.success:
+                    outcome = f"✅ 突破成功：{result.current_level} → {result.next_level}"
+                else:
+                    outcome = f"❌ 突破失败，损失修为：{result.exp_loss:,}"
+                yield event.plain_result(f"{outcome}\n━━━━━━━━━━━━\n{result.rate_info}")
+                return
             
             # 使用丹药
             success, message = self.pill_service.use_pill(user_id, pill_name, use_quantity)

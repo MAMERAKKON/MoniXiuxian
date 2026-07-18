@@ -11,6 +11,7 @@ class PlantedHerb:
     herb_rank: str  # 药草品级
     plant_time: int  # 种植时间(Unix时间戳)
     mature_time: int  # 成熟时间(Unix时间戳)
+    batch_quantity: int = 1  # 本块田实际种植的种子数量
     
     def is_mature(self, current_time: int) -> bool:
         """检查是否成熟"""
@@ -65,7 +66,7 @@ class Plot:
         return self.planted_herb.is_mature(current_time)
     
     def plant(self, herb_id: str, herb_name: str, herb_rank: str, 
-              plant_time: int, mature_time: int) -> None:
+              plant_time: int, mature_time: int, batch_quantity: int = 1) -> None:
         """种植药草"""
         if not self.is_empty():
             raise ValueError("田地已被占用")
@@ -75,7 +76,8 @@ class Plot:
             herb_name=herb_name,
             herb_rank=herb_rank,
             plant_time=plant_time,
-            mature_time=mature_time
+            mature_time=mature_time,
+            batch_quantity=max(1, int(batch_quantity))
         )
     
     def harvest(self) -> PlantedHerb:

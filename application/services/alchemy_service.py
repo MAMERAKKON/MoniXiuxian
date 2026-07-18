@@ -3,6 +3,8 @@
 
 处理炼丹相关的业务逻辑。
 """
+import json
+import math
 import random
 from typing import Optional, Tuple, Dict
 from pathlib import Path
@@ -44,6 +46,49 @@ class AlchemyService:
         except Exception as e:
             print(f"警告：无法加载配方管理器: {e}")
             self.recipe_manager = None
+
+        self._pill_prices = None
+
+    def _get_pill_reference_price(self, pill_name: str) -> int:
+        """从物品配置读取成品参考价，配置缺失时返回0。"""
+        if self._pill_prices is None:
+            self._pill_prices = {}
+            items_path = Path(__file__).parent.parent.parent / "config" / "items.json"
+            try:
+                with open(items_path, "r", encoding="utf-8") as f:
+                    items = json.load(f)
+                for item in items.values():
+                    name = item.get("name")
+                    if name:
+                        self._pill_prices[name] = int(item.get("price", 0) or 0)
+            except (OSError, ValueError, TypeError):
+                self._pill_prices = {}
+        return int(self._pill_prices.get(pill_name, 0) or 0)
+
+    @staticmethod
+    def _target_cost_ratio(recipe: Recipe) -> float:
+        """炼丹总成本目标占成品估价比例。"""
+        name = str(recipe.name or "")
+        if any(token in name for token in ("破境", "渡劫", "增益")):
+            return 0.95
+        if int(recipe.level_required or 0) >= 40:
+            return 0.90
+        if int(recipe.level_required or 0) >= 20:
+            return 0.90
+        return 0.85
+
+    def _calculate_dynamic_craft_cost(self, recipe: Recipe, success_rate: float) -> int:
+        """按成品估价和成功率计算动态炼制费，避免免费种子制造通胀。"""
+        reference_price = self._get_pill_reference_price(recipe.name)
+        if reference_price <= 0:
+            return int(recipe.cost)
+        expected_cost = math.ceil(
+            reference_price
+            * self._target_cost_ratio(recipe)
+            * max(0.0, min(100.0, float(success_rate)))
+            / 100.0
+        )
+        return max(int(recipe.cost), expected_cost)
     
     def get_recipe_by_pill_id(self, pill_id: str) -> Optional[Recipe]:
         """
@@ -131,18 +176,23 @@ class AlchemyService:
                 f"材料不足：\n" + "\n".join(missing_materials)
             )
 
+        initial_success_rate = min(
+            float(recipe.success_rate) + float(player.get_alchemy_success_bonus()),
+            100.0,
+        )
+        dynamic_cost = self._calculate_dynamic_craft_cost(recipe, initial_success_rate)
         gold_limit = quantity
-        if recipe.cost > 0:
-            gold_limit = player.gold // recipe.cost
+        if dynamic_cost > 0:
+            gold_limit = player.gold // dynamic_cost
         if gold_limit == 0:
             raise BusinessException(
-                f"灵石不足：炼制【{recipe.name}】每次需要{recipe.cost:,}灵石，"
+                f"灵石不足：炼制【{recipe.name}】每次需要{dynamic_cost:,}灵石，"
                 f"当前拥有{player.gold:,}灵石"
             )
         
         # 实际炼制数量同时受材料和灵石限制
         actual_quantity = min(quantity, material_limit, gold_limit)
-        total_gold_cost = recipe.cost * actual_quantity
+        total_gold_cost = dynamic_cost * actual_quantity
         if total_gold_cost > 0 and not player.consume_gold(total_gold_cost):
             raise BusinessException("扣除炼制费用失败，请稍后重试")
         
@@ -317,7 +367,8 @@ class AlchemyService:
             lines.append(f"  炼丹等级：Lv.{recipe.level_required}")
             lines.append(f"  材料：{materials_str}")
             lines.append(f"  成功率：{recipe.success_rate}%")
-            lines.append(f"  炼制费用：{recipe.cost:,}灵石/次")
+            preview_cost = self._calculate_dynamic_craft_cost(recipe, recipe.success_rate)
+            lines.append(f"  炼制费用：约{preview_cost:,}灵石/次（随成功率动态变化）")
             
             # 获取丹药效果描述
             desc = self._get_pill_description(recipe.name)
@@ -399,11 +450,11 @@ class AlchemyService:
             "凡品": 10,
             "灵品": 20,
             "珍品": 30,
-            "圣品": 50,
-            "帝品": 80,
-            "道品": 120,
-            "仙品": 180,
-            "神品": 250
+            "圣品": 80,
+            "帝品": 140,
+            "道品": 240,
+            "仙品": 400,
+            "神品": 650
         }
         return exp_map.get(pill_rank, 10)
     

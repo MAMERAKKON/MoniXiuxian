@@ -170,7 +170,8 @@ class SpiritFieldRepository(BaseRepository[SpiritField]):
                     herb_name=plot_data['herb_name'],
                     herb_rank=plot_data['herb_rank'],
                     plant_time=plot_data['plant_time'],
-                    mature_time=plot_data['mature_time']
+                    mature_time=plot_data['mature_time'],
+                    batch_quantity=plot_data.get('batch_quantity', 1)
                 )
             
             plot = Plot(
@@ -217,7 +218,8 @@ class SpiritFieldRepository(BaseRepository[SpiritField]):
                     'herb_name': plot.planted_herb.herb_name,
                     'herb_rank': plot.planted_herb.herb_rank,
                     'plant_time': plot.planted_herb.plant_time,
-                    'mature_time': plot.planted_herb.mature_time
+                    'mature_time': plot.planted_herb.mature_time,
+                    'batch_quantity': plot.planted_herb.batch_quantity
                 })
             
             plots_data.append(plot_data)

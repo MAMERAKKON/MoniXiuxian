@@ -68,7 +68,12 @@ class Player:
     
     # 突破相关
     level_up_rate: int = 0  # 突破成功率加成
+    # 当前战斗前生效的丹药属性增益：{丹药名: {effect_key: value}}
+    # 仅记录可暂时叠加的属性；战斗结束后由 clear_pill_buffs 清除。
+    active_pill_effects: dict = field(default_factory=dict)
     death_immunity_charges: int = 0  # 大番茄提供的持久免死次数
+    # 最近一次秘境死亡遗失，可在成功完成同一秘境时取回。
+    rift_death_recovery: dict = field(default_factory=dict)
     
     # 炼丹职业
     alchemy_level: int = 0  # 炼丹等级（0-100）
@@ -130,6 +135,42 @@ class Player:
         self.death_immunity_charges -= 1
         return True
 
+    def clear_pill_buffs(self) -> dict:
+        """清除本次战斗前生效的丹药属性，并返回被清除的丹药名。"""
+        if not self.active_pill_effects:
+            return {}
+        cleared = dict(self.active_pill_effects)
+        for effects in cleared.values():
+            if not isinstance(effects, dict):
+                continue
+            max_hp_gain = int(effects.get("add_max_hp", 0) or 0)
+            spiritual_gain = int(effects.get("add_spiritual_power", 0) or 0)
+            if self.cultivation_type == CultivationType.SPIRITUAL:
+                self.max_spiritual_qi = max(1, self.max_spiritual_qi - max_hp_gain - spiritual_gain)
+                self.spiritual_qi = min(self.spiritual_qi, self.max_spiritual_qi)
+            else:
+                self.max_blood_qi = max(1, self.max_blood_qi - max_hp_gain - spiritual_gain)
+                self.blood_qi = min(self.blood_qi, self.max_blood_qi)
+
+            attack_gain = int(effects.get("add_attack", 0) or 0)
+            defense_gain = int(effects.get("add_defense", 0) or 0)
+            if self.cultivation_type == CultivationType.SPIRITUAL:
+                self.magic_damage -= attack_gain
+                self.magic_defense -= defense_gain
+            else:
+                self.physical_damage -= attack_gain
+                self.physical_defense -= defense_gain
+            self.mental_power = max(
+                0, self.mental_power - int(effects.get("add_mental_power", 0) or 0)
+            )
+            self.level_up_rate = max(
+                0,
+                self.level_up_rate - int(float(effects.get("add_breakthrough_bonus", 0) or 0) * 100),
+            )
+        self.active_pill_effects = {}
+        self.updated_at = int(time.time())
+        return cleared
+
     def has_destiny_artifact(self) -> bool:
         """是否装备专属天命道具。"""
         artifact_name = "面面舍利子"
@@ -158,6 +199,11 @@ class Player:
             self.magic_defense +
             self.mental_power // 10
         )
+
+    def calculate_speed(self, extra_speed: int = 0) -> float:
+        """计算战斗速度；基础值100，装备速度可进一步拉开差距。"""
+        level_gain = 2 if self.cultivation_type == CultivationType.SPIRITUAL else 1
+        return float(100 + self.level_index * level_gain + extra_speed)
     
     def add_experience(self, exp: int) -> None:
         """增加修为"""

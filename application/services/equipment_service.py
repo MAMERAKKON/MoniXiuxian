@@ -348,26 +348,30 @@ class EquipmentService:
         parts = []
         
         if stats.magic_damage > 0:
-            parts.append(f"法攻+{stats.magic_damage}")
+            parts.append(f"法伤+{stats.magic_damage}")
         if stats.physical_damage > 0:
-            parts.append(f"物攻+{stats.physical_damage}")
+            parts.append(f"物伤+{stats.physical_damage}")
         if stats.magic_defense > 0:
             parts.append(f"法防+{stats.magic_defense}")
         if stats.physical_defense > 0:
             parts.append(f"物防+{stats.physical_defense}")
         if stats.mental_power > 0:
-            parts.append(f"神念+{stats.mental_power}")
+            parts.append(f"精神力+{stats.mental_power}")
         if stats.max_hp > 0:
-            parts.append(f"气血+{stats.max_hp}")
+            parts.append(f"气血上限+{stats.max_hp}")
         if stats.spiritual_qi > 0:
-            parts.append(f"灵气+{stats.spiritual_qi}")
+            parts.append(f"灵气上限+{stats.spiritual_qi}")
+        if stats.speed != 0:
+            parts.append(f"速度{stats.speed:+}")
+        if stats.target_weight != 0:
+            parts.append(f"Boss吸引权重{stats.target_weight:+.2f}")
         if stats.exp_multiplier > 0:
-            parts.append(f"修炼+{stats.exp_multiplier * 100:.0f}%")
+            parts.append(f"修炼效率+{stats.exp_multiplier * 100:.0f}%")
         
         # 旧版属性
         if stats.attack > 0:
-            parts.append(f"攻击+{stats.attack}")
+            parts.append(f"攻击力+{stats.attack}")
         if stats.defense > 0:
-            parts.append(f"防御+{stats.defense}")
+            parts.append(f"防御力+{stats.defense}")
         
         return "、".join(parts)

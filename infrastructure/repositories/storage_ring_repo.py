@@ -11,13 +11,17 @@ class StorageRingRepository:
     
     # 功法残篇合成配置
     TECHNIQUE_SYNTHESIS = {
-        # 凡品功法 - 5个残篇合成
-        "长春功": {"fragment": "长春功残篇", "required": 5, "tier": "凡品"},
-        "御风诀": {"fragment": "御风诀残篇", "required": 5, "tier": "凡品"},
+        # 所有历练功法统一 10 个碎片合成完整功法
+        "长春功": {"fragment": "长春功残篇", "required": 10, "tier": "凡品"},
+        "御风诀": {"fragment": "御风诀残篇", "required": 10, "tier": "凡品"},
         # 珍品功法 - 10个残篇合成
         "不动明王经": {"fragment": "不动明王经残篇", "required": 10, "tier": "珍品"},
         "北冥神功": {"fragment": "北冥神功残篇", "required": 10, "tier": "珍品"},
         "九阳神功": {"fragment": "九阳神功残篇", "required": 10, "tier": "珍品"},
+        "山野吐纳心得": {"fragment": "山野吐纳心得碎片", "required": 10, "tier": "修炼心得"},
+        "云游悟道录": {"fragment": "云游悟道录碎片", "required": 10, "tier": "修炼心得"},
+        "猎魔淬心诀": {"fragment": "猎魔淬心诀碎片", "required": 10, "tier": "修炼心得"},
+        "生死悟道经": {"fragment": "生死悟道经碎片", "required": 10, "tier": "修炼心得"},
         # 圣品/帝品功法 - 15个残篇合成
         "焚天诀": {"fragment": "焚天诀残篇", "required": 15, "tier": "圣品"},
         "道经": {"fragment": "道经残篇", "required": 15, "tier": "帝品"},

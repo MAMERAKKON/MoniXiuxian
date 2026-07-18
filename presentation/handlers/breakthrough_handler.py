@@ -48,6 +48,8 @@ class BreakthroughHandler:
                 f"━━━━━━━━━━━━━━━\n"
                 f"【突破成功率】\n"
                 f"基础成功率：{info['base_success_rate']:.1%}\n"
+                f"丹药突破加成：+{info.get('pill_bonus_rate', 0.0):.1%}\n"
+                f"当前预计成功率：{info.get('preview_success_rate', info['base_success_rate']):.1%}\n"
                 f"━━━━━━━━━━━━━━━\n"
                 f"【突破说明】\n"
                 f"• 使用命令：突破\n"

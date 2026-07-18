@@ -234,7 +234,12 @@ class SectService:
             raise BusinessException(f"宗门成员已满（上限{self.SECT_MAX_MEMBERS}人）")
 
         # 5. 加入宗门（默认为外门弟子）
-        self.sect_repo.update_player_sect(user_id, sect.sect_id, SectPosition.OUTER_DISCIPLE)
+        position = (
+            SectPosition.LEADER
+            if str(sect.leader_id) == str(user_id)
+            else SectPosition.OUTER_DISCIPLE
+        )
+        self.sect_repo.update_player_sect(user_id, sect.sect_id, position)
 
         # 6. 重新加载玩家以刷新状态
         player = self._get_player(user_id)

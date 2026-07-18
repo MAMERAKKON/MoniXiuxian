@@ -198,7 +198,8 @@ class Container:
         return PlayerService(
             self.player_repository(),
             self.config_manager(),
-            self.reincarnation_repository()
+            self.reincarnation_repository(),
+            self.sect_repository()
         )
     
     def cultivation_service(self):
@@ -216,7 +217,8 @@ class Container:
         from ..application.services.breakthrough_service import BreakthroughService
         return BreakthroughService(
             self.player_repository(),
-            self.config_manager()
+            self.config_manager(),
+            self.reincarnation_repository()
         )
     
     def combat_service(self):
@@ -253,7 +255,8 @@ class Container:
         return PillService(
             self.player_repository(),
             self.storage_ring_repository(),
-            self.config_manager()
+            self.config_manager(),
+            self.reincarnation_repository()
         )
     
     def alchemy_service(self):
@@ -326,7 +329,8 @@ class Container:
             self.bounty_repository(),
             self.player_repository(),
             self.storage_ring_repository(),
-            self.config_manager()
+            self.config_manager(),
+            self.reincarnation_repository()
         )
     
     def bank_service(self):
@@ -335,8 +339,15 @@ class Container:
         return BankService(
             self.player_repository(),
             self.bank_repository(),
-            self.config_manager()
+            self.config_manager(),
+            self.combat_service(),
+            self.player_service()
         )
+
+    def transfer_service(self):
+        """获取玩家转账服务"""
+        from ..application.services.transfer_service import TransferService
+        return TransferService(self.player_repository())
     
     def blessed_land_service(self):
         """获取洞天福地服务"""

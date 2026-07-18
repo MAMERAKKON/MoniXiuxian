@@ -52,20 +52,22 @@ class RiftHandler:
                     death_rate = self.rift_service._calculate_death_rate(player_level, rift) if player else 0
                     death_rate_str = f"{death_rate:.1f}%" if death_rate > 0 else "0%"
                     
+                    gold_min = int(rift.gold_reward_min * self.rift_service.RIFT_GOLD_REWARD_MULTIPLIER)
+                    gold_max = int(rift.gold_reward_max * self.rift_service.RIFT_GOLD_REWARD_MULTIPLIER)
                     lines.append(
                         f"· ID {rift.rift_id}: {rift.rift_name}"
                         f"\n  - 最低境界：{required_level_name}"
                         f"\n  - 推荐境界：{recommended_level_name}"
                         f"\n  - 你的死亡率：{death_rate_str}"
                         f"\n  - 修为奖励：{rift.exp_reward_min:,} ~ {rift.exp_reward_max:,}"
-                        f"\n  - 灵石奖励：{rift.gold_reward_min:,} ~ {rift.gold_reward_max:,}"
+                        f"\n  - 灵石奖励：{gold_min:,} ~ {gold_max:,}"
                     )
                     if rift.description:
                         lines.append(f"  - 说明：{rift.description}")
             
             lines.append(
                 "\n💡 指令用法：\n"
-                "  /探索秘境 <ID> → 进入秘境\n"
+                "  /探索秘境 <ID> → 开始探索\n"
                 "  /完成探索 → 领取奖励\n"
                 "  /退出秘境 → 放弃探索"
             )
@@ -124,7 +126,8 @@ class RiftHandler:
                     lines.append(f"💔 死亡惩罚：")
                     lines.append(f"  · 损失修为：-{result.death_penalty['exp_lost']:,}")
                     lines.append(f"  · 损失灵石：-{result.death_penalty['gold_lost']:,}")
-                    lines.append(f"  · 你侥幸保住了性命，但修为和灵石已化为虚无...")
+                    lines.append("  · 下次成功完成同一秘境可取回本次全部损失")
+                    lines.append("  · 若取回前再次死于秘境，本次损失将被新记录覆盖")
                 
                 lines.append("\n━━━━━━━━━━━━━━━")
                 if player:
@@ -148,6 +151,11 @@ class RiftHandler:
             # 奖励信息
             lines.append(f"获得修为：+{result.exp_gained:,}")
             lines.append(f"获得灵石：+{result.gold_gained:,}")
+
+            if result.recovered_exp > 0 or result.recovered_gold > 0:
+                lines.append("\n🧭 寻回上次死亡遗失：")
+                lines.append(f"  · 修为：+{result.recovered_exp:,}")
+                lines.append(f"  · 灵石：+{result.recovered_gold:,}")
             
             # 物品
             if result.items_gained:

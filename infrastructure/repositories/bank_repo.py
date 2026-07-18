@@ -115,14 +115,13 @@ class BankRepository(BaseRepository[BankAccount]):
     
     def get_overdue_loans(self, current_time: int) -> List[Loan]:
         """获取所有逾期贷款"""
-        current_time_iso = TimestampConverter.to_iso8601(current_time)
-        
+        # 逾期判断使用时间戳，避免不同ISO格式或时区字符串比较失效。
         results = self.storage.query(
             self.loans_filename,
             filter_fn=lambda data: (
                 data.get("status") == 1 and 
                 data.get("due_at") and 
-                data.get("due_at") < current_time_iso
+                (TimestampConverter.from_iso8601(data.get("due_at")) or 0) < int(current_time)
             )
         )
         

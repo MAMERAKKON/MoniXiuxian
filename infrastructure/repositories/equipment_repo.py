@@ -68,6 +68,45 @@ class EquipmentRepository(BaseRepository[Equipment]):
         
         self._weapons_cache = {}
         for weapon_data in weapons_data:
+            weapon_category = weapon_data.get("weapon_category", "")
+            physical_categories = {"\u5251", "\u5200", "\u9614\u5200", "\u5323\u9996", "\u68cd", "\u67aa"}
+            magic_categories = {"\u7434", "\u7b26\u7b94", "\u6bdb\u7b14"}
+            physical_damage = weapon_data.get("physical_damage", 0)
+            magic_damage = weapon_data.get("magic_damage", 0)
+            physical_categories = {chr(0x5251), chr(0x5200), chr(0x9614), chr(0x5323), chr(0x68cd), chr(0x67aa)}
+            magic_categories = {chr(0x7434), chr(0x7b26), chr(0x6bdb)}
+            if weapon_category in physical_categories:
+                magic_damage = 0
+            elif weapon_category in magic_categories:
+                physical_damage = 0
+            level_index = int(weapon_data.get("required_level_index", 0) or 0)
+            if "speed" in weapon_data:
+                speed = weapon_data.get("speed", 0)
+            elif weapon_category == "\u5323\u9996":
+                speed = max(2, int(2 + level_index * 0.12))
+            elif weapon_category == "\u9614\u5200":
+                speed = -max(1, int(1 + level_index * 0.05))
+            elif weapon_category in {"\u5251", "\u67aa", "\u7434", "\u6bdb\u7b14"}:
+                speed = max(1, int(1 + level_index * 0.06))
+            else:
+                speed = 0
+            # 使用真实中文类别覆盖兼容分支，确保自动特色词条确实生效。
+            if weapon_category == chr(0x5323):
+                speed = max(2, int(2 + level_index * 0.12))
+            elif weapon_category == chr(0x9614):
+                speed = -max(1, int(1 + level_index * 0.05))
+            elif weapon_category in {chr(0x5251), chr(0x67aa), chr(0x7434), chr(0x6bdb)}:
+                speed = max(1, int(1 + level_index * 0.06))
+            if "target_weight" in weapon_data:
+                target_weight = weapon_data.get("target_weight", 0.0)
+            elif weapon_category == "\u9614\u5200":
+                target_weight = round(0.15 + level_index * 0.01, 2)
+            elif weapon_category == "\u68cd":
+                target_weight = round(0.10 + level_index * 0.006, 2)
+            elif weapon_category == "\u9f0e":
+                target_weight = round(0.20 + level_index * 0.012, 2)
+            else:
+                target_weight = 0.0
             # 构建属性字典
             equipment_dict = {
                 "id": weapon_data.get("id", ""),
@@ -77,14 +116,16 @@ class EquipmentRepository(BaseRepository[Equipment]):
                 "description": weapon_data.get("description", ""),
                 "required_level_index": weapon_data.get("required_level_index", 0),
                 "price": weapon_data.get("price", 0),
-                "weapon_category": weapon_data.get("weapon_category", ""),
-                "magic_damage": weapon_data.get("magic_damage", 0),
-                "physical_damage": weapon_data.get("physical_damage", 0),
+                "weapon_category": weapon_category,
+                "magic_damage": magic_damage,
+                "physical_damage": physical_damage,
                 "magic_defense": weapon_data.get("magic_defense", 0),
                 "physical_defense": weapon_data.get("physical_defense", 0),
                 "mental_power": weapon_data.get("mental_power", 0),
                 "spiritual_qi": weapon_data.get("spiritual_qi", 0),
                 "exp_multiplier": weapon_data.get("exp_multiplier", 0.0),
+                "speed": speed,
+                "target_weight": target_weight,
             }
             
             equipment = Equipment.from_dict(equipment_dict)
@@ -110,6 +151,20 @@ class EquipmentRepository(BaseRepository[Equipment]):
             item_type = item_data.get("type", "")
             if item_type not in ["法器", "功法"]:
                 continue
+
+            item_name = str(item_data.get("name", ""))
+            item_subtype = item_data.get("subtype", "")
+            item_magic_damage = item_data.get("magic_damage", 0)
+            item_physical_damage = item_data.get("physical_damage", 0)
+            if item_subtype == "武器":
+                magic_weapon = any(ch in item_name for ch in ("符", "琴", "笔"))
+                if magic_weapon:
+                    item_physical_damage = 0
+                else:
+                    item_magic_damage = 0
+            item_speed = 0
+            if item_subtype == "武器":
+                item_speed = max(1, int(1 + int(item_data.get("required_level_index", 0) or 0) * 0.06))
             
             # 构建属性字典
             equipment_dict = {
@@ -121,14 +176,15 @@ class EquipmentRepository(BaseRepository[Equipment]):
                 "required_level_index": item_data.get("required_level_index", 0),
                 "price": item_data.get("price", 0),
                 "subtype": item_data.get("subtype", ""),
-                "magic_damage": item_data.get("magic_damage", 0),
-                "physical_damage": item_data.get("physical_damage", 0),
+                "magic_damage": item_magic_damage,
+                "physical_damage": item_physical_damage,
                 "magic_defense": item_data.get("magic_defense", 0),
                 "physical_defense": item_data.get("physical_defense", 0),
                 "mental_power": item_data.get("mental_power", 0),
                 "max_hp": item_data.get("max_hp", 0),
                 "spiritual_qi": item_data.get("spiritual_qi", 0),
                 "exp_multiplier": item_data.get("exp_multiplier", 0.0),
+                "speed": item_speed,
             }
             
             # 如果有旧的equip_effects，也保留用于兼容

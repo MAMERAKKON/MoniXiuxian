@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Tuple
 from ...core.config import ConfigManager
 from ...core.exceptions import GameException
 from ...domain.models.adventure import AdventureRoute, AdventureEvent, AdventureResult
-from ...domain.enums import PlayerState
+from ...domain.enums import PlayerState, CultivationType
 from ...infrastructure.repositories.player_repo import PlayerRepository
 from ...infrastructure.repositories.reincarnation_repo import ReincarnationRepository
 from ...infrastructure.repositories.storage_ring_repo import StorageRingRepository
@@ -16,6 +16,18 @@ from ...infrastructure.repositories.storage_ring_repo import StorageRingReposito
 
 class AdventureService:
     """历练服务"""
+
+    ADVENTURE_FRAGMENT_TABLE = [
+        {"name": "长春功残篇", "weight": 12},
+        {"name": "御风诀残篇", "weight": 12},
+        {"name": "不动明王经残篇", "weight": 8},
+        {"name": "北冥神功残篇", "weight": 6},
+        {"name": "九阳神功残篇", "weight": 4},
+        {"name": "山野吐纳心得碎片", "weight": 12},
+        {"name": "云游悟道录碎片", "weight": 10},
+        {"name": "猎魔淬心诀碎片", "weight": 8},
+        {"name": "生死悟道经碎片", "weight": 6},
+    ]
 
     ATTRIBUTE_LABELS = {
         "hp_flat": "HP白值",
@@ -83,6 +95,7 @@ class AdventureService:
                 "risk": route.get("risk", "未知"),
                 "duration": route.get("duration", 0),
                 "min_level": route.get("min_level", 0),
+                "base_success_rate": route.get("success_rate", 80),
                 "description": route.get("description", ""),
                 "aliases": route.get("aliases", []),
                 "attribute_chance": route.get("attribute_reward", {}).get(
@@ -95,7 +108,20 @@ class AdventureService:
                 ).get(
                     "chance",
                     0
-                )
+                ),
+                "cultivation_drop_names": [
+                    item.get("name")
+                    for item in route.get("cultivation_drop", {}).get("items", [])
+                    if item.get("name")
+                ],
+                "fragment_drop_chance": route.get(
+                    "cultivation_drop",
+                    {}
+                ).get(
+                    "fragment_chance",
+                    10
+                ),
+                "technique_drop_chance": route.get("cultivation_drop", {}).get("complete_chance", 0)
             })
         return overview
     
@@ -123,7 +149,13 @@ class AdventureService:
         min_level = route.get("min_level", 0)
         if player.level_index < min_level:
             raise GameException(f"你的境界还不足以踏上这条路线（需要境界 ≥ {min_level}）")
+
+        # 气血/灵气低于 50% 时不能开始历练。
+        if player.get_health_percentage() < 0.5:
+            raise GameException("当前气血/灵气低于 50%，无法开始历练，请先恢复状态")
         
+        success_rate = self._calculate_success_rate(player.level_index, route)
+
         # 更新玩家状态
         start_time = int(time.time())
         duration = route.get("duration", 3600)
@@ -133,7 +165,8 @@ class AdventureService:
             "route_key": route_key,
             "route_name": route["name"],
             "start_time": start_time,
-            "end_time": end_time
+            "end_time": end_time,
+            "success_rate": success_rate,
         }
         
         self.player_repo.update_player_state(
@@ -150,7 +183,8 @@ class AdventureService:
         # 构建提示信息
         lines = [
             f"✨ 你选择了「{route['name']}」——{route.get('description', '未知冒险')}",
-            f"路线风险：{route.get('risk', '未知')} | 历练时长：{time_str}"
+            f"路线风险：{route.get('risk', '未知')} | 历练时长：{time_str}",
+            f"本次成功率：{success_rate:.1f}%（失败不会扣除修为和灵石，但会降至 1 点生命资源）"
         ]
         
         if min_level > 0:
@@ -223,6 +257,32 @@ class AdventureService:
         route = self.routes.get(route_key)
         if not route:
             raise GameException("历练路线数据异常")
+
+        # 历练和秘境一样进行成功率判定；失败不扣修为或灵石，但保留 1 点生命资源。
+        success_rate = max(
+            0.0,
+            min(100.0, float(extra_data.get("success_rate", self._calculate_success_rate(player.level_index, route))))
+        )
+        if random.random() * 100 >= success_rate:
+            if player.cultivation_type == CultivationType.SPIRITUAL:
+                player.spiritual_qi = 1
+            else:
+                player.blood_qi = 1
+            self.player_repo.save(player)
+            self.player_repo.update_player_state(user_id, state=PlayerState.IDLE, extra_data=None)
+            return AdventureResult(
+                success=False,
+                gold_gained=0,
+                exp_gained=0,
+                items_gained=[],
+                event_type="adventure_failure",
+                event_description=(
+                    f"💀 你在『{route.get('name', '历练')}』中遭遇失败！"
+                    f"（成功率：{success_rate:.0f}%）\n"
+                    "本次未扣除修为和灵石，但气血/灵气已降至 1 点。"
+                ),
+                fatigue_cost=0,
+            )
         
         # 计算奖励
         result = self._calculate_rewards(player, route)
@@ -340,6 +400,18 @@ class AdventureService:
         
         return f"🚫 你放弃了【{route_name}】历练\n所有进度和奖励已清空"
     
+    def _calculate_success_rate(self, player_level: int, route: Dict) -> float:
+        """按路线基础值、境界差和随机波动计算本次历练成功率。"""
+        base_rate = float(route.get("success_rate", 80.0))
+        min_level = int(route.get("min_level", 0))
+        level_diff = player_level - min_level
+        # 高于推荐境界略微提高，低于推荐境界明显降低；再叠加每次独立的随机波动。
+        if level_diff >= 2:
+            return 100.0
+        level_adjust = level_diff * 5.0
+        random_adjust = random.uniform(-3.0, 3.0)
+        return max(20.0, min(95.0, base_rate + level_adjust + random_adjust))
+
     def _trigger_route_event(self, route: Dict) -> Dict:
         """触发路线事件"""
         event_weights = route.get("event_weights", {})
@@ -439,8 +511,7 @@ class AdventureService:
                         })
                         break
 
-        cultivation_item = self._roll_cultivation_drop(route)
-        if cultivation_item:
+        for cultivation_item in self._roll_cultivation_drop(route):
             items_gained.append({"name": cultivation_item, "count": 1})
 
         attribute_gained = self._roll_attribute_reward(route)
@@ -460,9 +531,7 @@ class AdventureService:
     def _roll_attribute_reward(self, route: Dict) -> Optional[Dict[str, object]]:
         """按路线配置随机生成一项本世白值奖励。"""
         reward_config = route.get("attribute_reward", {})
-        if not self.reincarnation_repo or not reward_config:
-            return None
-        if random.random() * 100 > float(reward_config.get("chance", 0)):
+        if not reward_config:
             return None
 
         ranges = reward_config.get("ranges", {})
@@ -487,28 +556,57 @@ class AdventureService:
             "value": value,
         }
 
-    @staticmethod
-    def _roll_cultivation_drop(route: Dict) -> Optional[str]:
-        """独立判定历练专属的修炼加成功法掉落。"""
+    def _roll_cultivation_drop(self, route: Dict) -> List[str]:
+        """分别判定完整功法、修炼心得，以及共享碎片池。"""
+        rewards: List[str] = []
         drop_config = route.get("cultivation_drop", {})
-        if random.random() * 100 > float(drop_config.get("chance", 0)):
-            return None
 
+        # 完整功法保留低概率直落，优先于碎片判定。
+        complete_items = [
+            item for item in drop_config.get("complete_items", [])
+            if item.get("name")
+            and "心得" not in str(item.get("name"))
+            and "残篇" not in str(item.get("name"))
+            and float(item.get("weight", 0)) > 0
+        ]
+        complete_chance = float(drop_config.get("complete_chance", 0))
+        if complete_items and random.random() * 100 < complete_chance:
+            total_weight = sum(float(item["weight"]) for item in complete_items)
+            roll = random.uniform(0, total_weight)
+            cumulative = 0.0
+            for item in complete_items:
+                cumulative += float(item["weight"])
+                if roll <= cumulative:
+                    rewards.append(str(item["name"]))
+                    break
+
+        # 该路线对应的修炼心得，掉落率随历练强度降低。
         items = [
             item for item in drop_config.get("items", [])
             if item.get("name") and float(item.get("weight", 0)) > 0
         ]
-        if not items:
-            return None
+        if items and random.random() * 100 <= float(drop_config.get("chance", 0)):
+            total_weight = sum(float(item["weight"]) for item in items)
+            roll = random.uniform(0, total_weight)
+            cumulative = 0.0
+            for item in items:
+                cumulative += float(item["weight"])
+                if roll <= cumulative:
+                    rewards.append(str(item["name"]))
+                    break
 
-        total_weight = sum(float(item["weight"]) for item in items)
-        roll = random.uniform(0, total_weight)
-        cumulative = 0.0
-        for item in items:
-            cumulative += float(item["weight"])
-            if roll <= cumulative:
-                return str(item["name"])
-        return str(items[-1]["name"])
+        # 功法残篇与心得碎片共享一次 10% 判定，成功后只掉其中一种。
+        if random.random() * 100 <= float(drop_config.get("fragment_chance", 10.0)):
+            total_weight = sum(float(item["weight"]) for item in self.ADVENTURE_FRAGMENT_TABLE)
+            roll = random.uniform(0, total_weight)
+            cumulative = 0.0
+            for item in self.ADVENTURE_FRAGMENT_TABLE:
+                cumulative += float(item["weight"])
+                if roll <= cumulative:
+                    rewards.append(item["name"])
+                    break
+
+        return rewards
     
     def _update_bounty_progress(
         self,

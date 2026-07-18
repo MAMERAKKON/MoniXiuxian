@@ -10,6 +10,9 @@ from ...core.exceptions import GameException
 from ...domain.models.bank import BankAccount, Loan, BankInfo, LoanInfo
 from ...infrastructure.repositories.player_repo import PlayerRepository
 from ...infrastructure.repositories.bank_repo import BankRepository
+from .combat_service import CombatService
+from ...domain.models.combat import CombatStats
+from ...domain.enums import CultivationType
 
 
 class BankService:
@@ -29,11 +32,15 @@ class BankService:
         self,
         player_repo: PlayerRepository,
         bank_repo: BankRepository,
-        config_manager: ConfigManager
+        config_manager: ConfigManager,
+        combat_service: Optional[CombatService] = None,
+        player_service=None
     ):
         self.player_repo = player_repo
         self.bank_repo = bank_repo
         self.config_manager = config_manager
+        self.combat_service = combat_service
+        self.player_service = player_service
         
         # 使用默认配置（暂不支持从配置文件读取）
         self.daily_interest_rate = self.DEFAULT_DAILY_INTEREST_RATE
@@ -44,6 +51,48 @@ class BankService:
         self.min_loan_amount = self.DEFAULT_MIN_LOAN_AMOUNT
         self.breakthrough_loan_rate = self.DEFAULT_BREAKTHROUGH_LOAN_RATE
         self.breakthrough_loan_duration = self.DEFAULT_BREAKTHROUGH_LOAN_DURATION
+
+    async def check_overdue_confrontation(self, user_id: str) -> Optional[dict]:
+        """银行指令统一入口：逾期者与独立成神模拟体切磋。"""
+        now = int(time.time())
+        # 允许管理员/测试直接修改 loans.json 后立即生效，不被旧缓存遮蔽。
+        try:
+            self.bank_repo.storage.reload_cache(self.bank_repo.loans_filename)
+        except Exception:
+            pass
+        overdue = [loan for loan in self.bank_repo.get_overdue_loans(now)
+                    if str(loan.user_id) == str(user_id)]
+        if not overdue:
+            return None
+        loan = overdue[0]
+        self.bank_repo.mark_loan_overdue(loan.id)
+        player = self.player_repo.get_player(str(user_id))
+        if not player or not self.combat_service:
+            return {"won": False, "message": "贷款已逾期，暂时无法进行追债战斗。"}
+        player_stats = await self.combat_service.prepare_combat_stats(str(user_id))
+        if player_stats is None:
+            return {"won": False, "message": "贷款已逾期，无法生成你的战斗数据。"}
+        god = CombatStats(
+            user_id="bank:god", name="成神·银行追债使",
+            hp=114514, max_hp=114514, mp=114514, max_mp=114514,
+            atk=114514, defense=114514, crit_rate=100.0,
+            damage_type="magic", physical_defense=114514,
+            magic_defense=114514, crit_damage=2.0, speed=114514,
+        )
+        log, rounds = self.combat_service.run_round_combat(
+            player_stats, god, max_rounds=self.combat_service.MAX_ROUNDS,
+            randomize_first=True,
+        )
+        if player_stats.is_alive() and not god.is_alive():
+            self.bank_repo.close_loan(loan.id)
+            return {"won": True, "rounds": rounds, "log": log,
+                    "message": "你击败了成神追债使，本笔贷款已被银行豁免。"}
+        reincarnated = None
+        if self.player_service:
+            reincarnated = self.player_service.force_reincarnation(str(user_id))
+        return {"won": False, "rounds": rounds, "log": log,
+                "reincarnated": reincarnated is not None,
+                "message": "你败于成神追债使，已被强制轮回，旧世贷款随旧身消散。"}
     
     # ===== 账户信息 =====
     

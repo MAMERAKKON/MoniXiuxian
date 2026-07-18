@@ -142,6 +142,14 @@ class BossRepository(BaseRepository[Boss]):
                 str(user_id): int(damage)
                 for user_id, damage in data.get("damage_records", {}).items()
             },
+            target_records={
+                str(user_id): int(count)
+                for user_id, count in data.get("target_records", {}).items()
+            },
+            damage_taken_records={
+                str(user_id): int(damage)
+                for user_id, damage in data.get("damage_taken_records", {}).items()
+            },
             participant_names={
                 str(user_id): str(name)
                 for user_id, name in data.get("participant_names", {}).items()
@@ -172,6 +180,8 @@ class BossRepository(BaseRepository[Boss]):
             "reference_power": boss.reference_power,
             "target_participants": boss.target_participants,
             "damage_records": boss.damage_records,
+            "target_records": boss.target_records,
+            "damage_taken_records": boss.damage_taken_records,
             "participant_names": boss.participant_names,
             "last_regen_time": TimestampConverter.to_iso8601(boss.last_regen_time),
             "regen_remainder": boss.regen_remainder

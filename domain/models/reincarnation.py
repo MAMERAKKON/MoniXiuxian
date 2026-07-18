@@ -48,6 +48,14 @@ class ReincarnationPool:
     
     reincarnation_count: int = 0
     last_reincarnation_time: Optional[int] = None
+    # 轮回后待继承的特殊道具与历练修炼心得。
+    retained_assets: Dict[str, Dict[str, int]] = field(default_factory=dict)
+    # 本世悬赏战功；轮回结算后清零
+    bounty_merit: int = 0
+    bounty_exchange_counts: Dict[str, int] = field(default_factory=lambda: {
+        "crit_rate_percent": 0,
+        "crit_damage_percent": 0,
+    })
     
     def add_to_life_pool(self, prop_key: str, value: float) -> float:
         """添加传承到本世池"""
@@ -83,6 +91,13 @@ class ReincarnationPool:
         
         for key in self.current_life_pool:
             self.current_life_pool[key] = 0.0
+
+        # 战功和兑换次数只属于本世，轮回后重新开始累计
+        self.bounty_merit = 0
+        self.bounty_exchange_counts = {
+            "crit_rate_percent": 0,
+            "crit_damage_percent": 0,
+        }
         
         self.reincarnation_count += 1
         return self.reincarnation_pool

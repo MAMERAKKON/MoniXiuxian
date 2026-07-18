@@ -33,12 +33,12 @@ class XiuxianGroupWhitelistFilter(filter.CustomFilter):
     "astrbot_plugin_monixiuxianv3",
     "MAMERAKKKKON",
     "模拟修仙 ver.M 群聊修仙游戏插件",
-    "1.2"
+    "1.3"
 )
 class XiuxianV3Plugin(Star):
     """模拟修仙 ver.M 插件。"""
 
-    # 每小时检查一次；最多保留 5 个无主灵眼，防止无限堆积。
+    # 每小时检查一次；无主灵眼超过 5 小时自动清理，最多保留 5 个无主灵眼。
     SPIRIT_EYE_CHECK_INTERVAL_SECONDS = 3600
     MAX_AVAILABLE_SPIRIT_EYES = 5
     BOSS_CHECK_INTERVAL_SECONDS = 60
@@ -109,6 +109,7 @@ class XiuxianV3Plugin(Star):
         from .presentation.handlers.boss_handler import BossHandler
         from .presentation.handlers.bounty_handler import BountyHandler
         from .presentation.handlers.bank_handler import BankHandler
+        from .presentation.handlers.transfer_handler import TransferHandler
         from .presentation.handlers.blessed_land_handler import BlessedLandHandler
         from .presentation.handlers.spirit_farm_handler import SpiritFarmHandler
         from .presentation.handlers.spirit_eye_handler import SpiritEyeHandler
@@ -149,7 +150,8 @@ class XiuxianV3Plugin(Star):
         )
         self.pill_handler = PillHandler(
             self.container.pill_service(),
-            self.container.player_service()
+            self.container.player_service(),
+            self.container.breakthrough_service()
         )
         self.alchemy_handler = AlchemyHandler(
             self.container.alchemy_service(),
@@ -170,12 +172,19 @@ class XiuxianV3Plugin(Star):
             self.container.rift_service()
         )
         self.boss_service = self.container.boss_service()
-        self.boss_handler = BossHandler(self.boss_service, self.config_manager)
+        self.boss_handler = BossHandler(
+            self.boss_service,
+            self.config_manager,
+            self._broadcast_boss_message,
+        )
         self.bounty_handler = BountyHandler(
             self.container.bounty_service()
         )
         self.bank_handler = BankHandler(
             self.container.bank_service()
+        )
+        self.transfer_handler = TransferHandler(
+            self.container.transfer_service()
         )
         self.blessed_land_handler = BlessedLandHandler(
             self.container.blessed_land_service()
@@ -213,6 +222,9 @@ class XiuxianV3Plugin(Star):
             # JSON 存储不需要初始化数据库
             # 数据目录已在 __init__ 中创建
             logger.info("【修仙ver.M】JSON 存储已就绪")
+            repaired_sects = self.container.player_service().repair_reincarnated_sect_memberships()
+            if repaired_sects:
+                logger.info(f"【轮回修复】已恢复 {repaired_sects} 名玩家的宗门归属")
             
             # 初始化秘境数据
             self._initialize_rifts()
@@ -261,6 +273,12 @@ class XiuxianV3Plugin(Star):
     async def _auto_spawn_spirit_eye(self):
         """无主灵眼不足上限时生成一个，并尝试广播通知。"""
         try:
+            expired_count = self.spirit_eye_service.cleanup_expired_spirit_eyes()
+            if expired_count:
+                logger.info(
+                    f"【修仙ver.M】已清理 {expired_count} 个超过 5 小时未领取的灵眼"
+                )
+
             available_eyes = (
                 self.spirit_eye_service.spirit_eye_repo.get_available_spirit_eyes()
             )
@@ -312,6 +330,32 @@ class XiuxianV3Plugin(Star):
             logger.debug("【修仙ver.M】Boss重生循环已取消")
             raise
 
+    async def _broadcast_boss_message(self, message: str):
+        """将 Boss 全服公告发送到已配置的 QQ 群会话。
+
+        AstrBot 的全局 broadcast 并不保证把消息投递到所有 QQ 群，
+        因此白名单模式下使用明确的 unified message origin 逐群发送。
+        未配置群白名单时保留原有全局 broadcast 行为。
+        """
+        if not _WHITELIST_GROUPS:
+            from astrbot.api import broadcast
+            await broadcast(message)
+            return
+
+        from astrbot.api.event import MessageChain
+
+        failures = []
+        for group_id in sorted(_WHITELIST_GROUPS):
+            umo = f"aiocqhttp:GroupMessage:{group_id}"
+            try:
+                chain = MessageChain().message(message)
+                await self.context.send_message(umo, chain)
+            except Exception as error:
+                failures.append(f"{group_id}: {error}")
+
+        if failures:
+            raise RuntimeError("；".join(failures))
+
     async def _auto_spawn_due_boss(self):
         try:
             boss = self.boss_service.try_spawn_due_boss()
@@ -323,14 +367,10 @@ class XiuxianV3Plugin(Star):
                 f"{('魔法' if boss.damage_type == 'magic' else '物理')}伤害｜"
                 f"修为奖池：{boss.exp_reward:,}｜灵石奖池：{boss.stone_reward:,}"
             )
-            # 未限制群聊时沿用AstrBot全局广播；白名单模式只写日志，
-            # 避免向未授权群发送插件消息。
-            if not _WHITELIST_GROUPS:
-                try:
-                    from astrbot.api import broadcast
-                    await broadcast(result)
-                except Exception:
-                    pass
+            try:
+                await self._broadcast_boss_message(result)
+            except Exception as broadcast_error:
+                logger.warning(f"Boss公告广播失败: {broadcast_error}")
             logger.info(f"【修仙ver.M】{result}")
         except Exception as e:
             logger.error(f"【修仙ver.M】自动生成Boss失败: {e}", exc_info=True)
@@ -806,6 +846,32 @@ class XiuxianV3Plugin(Star):
         """种植"""
         async for result in self.spirit_field_handler.handle_plant(event, herb_name, quantity):
             yield result
+
+    @filter.command(Commands.PLANT_HERB_X10)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_plant_herb_x10(self, event: AstrMessageEvent, herb_name: str = "", quantity: str = ""):
+        """十倍种植"""
+        user_id = str(event.get_sender_id())
+        if not herb_name:
+            yield event.plain_result("用法：十倍种植 <药草名> [田块数]（每块田消耗10颗种子）")
+            return
+        plot_quantity = 1
+        if quantity:
+            try:
+                plot_quantity = int(quantity)
+                if plot_quantity < 1 or plot_quantity > 15:
+                    yield event.plain_result("田块数必须在1～15之间")
+                    return
+            except ValueError:
+                yield event.plain_result("田块数必须是数字")
+                return
+        try:
+            result = self.container.spirit_field_service().plant_herb(
+                user_id, herb_name, quantity=plot_quantity, batch_multiplier=10
+            )
+            yield event.plain_result(result)
+        except Exception as e:
+            yield event.plain_result(str(e))
     
     @filter.command(Commands.HARVEST)
     @filter.custom_filter(XiuxianGroupWhitelistFilter)
@@ -915,6 +981,13 @@ class XiuxianV3Plugin(Star):
         """历练信息"""
         async for result in self.adventure_handler.handle_adventure_info(event):
             yield result
+
+    @filter.command(Commands.ADVENTURE_LIST)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_adventure_list(self, event: AstrMessageEvent):
+        """历练列表（历练信息别名）"""
+        async for result in self.adventure_handler.handle_adventure_info(event):
+            yield result
     
     @filter.command(Commands.START_ADVENTURE)
     @filter.custom_filter(XiuxianGroupWhitelistFilter)
@@ -950,6 +1023,13 @@ class XiuxianV3Plugin(Star):
     @filter.custom_filter(XiuxianGroupWhitelistFilter)
     async def cmd_rift_list(self, event: AstrMessageEvent):
         """秘境列表"""
+        async for result in self.rift_handler.handle_rift_list(event):
+            yield result
+
+    @filter.command(Commands.RIFT_INFO)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_rift_info(self, event: AstrMessageEvent):
+        """秘境信息（秘境列表别名）"""
         async for result in self.rift_handler.handle_rift_list(event):
             yield result
     
@@ -995,6 +1075,30 @@ class XiuxianV3Plugin(Star):
     async def cmd_challenge_boss(self, event: AstrMessageEvent):
         """挑战Boss"""
         async for result in self.boss_handler.handle_challenge_boss(event):
+            yield result
+
+    @filter.command(Commands.CREATE_BOSS_TEAM)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_create_boss_team(self, event: AstrMessageEvent):
+        async for result in self.boss_handler.handle_create_boss_team(event):
+            yield result
+
+    @filter.command(Commands.JOIN_BOSS_TEAM)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_join_boss_team(self, event: AstrMessageEvent, captain_id: str = ""):
+        async for result in self.boss_handler.handle_join_boss_team(event, captain_id):
+            yield result
+
+    @filter.command(Commands.BOSS_TEAM_INFO)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_boss_team_info(self, event: AstrMessageEvent):
+        async for result in self.boss_handler.handle_boss_team_info(event):
+            yield result
+
+    @filter.command(Commands.START_BOSS_TEAM)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_start_boss_team(self, event: AstrMessageEvent):
+        async for result in self.boss_handler.handle_start_boss_team(event):
             yield result
     
     @filter.command(Commands.SPAWN_BOSS)
@@ -1053,6 +1157,20 @@ class XiuxianV3Plugin(Star):
         """增加道具（管理员）"""
         async for result in self.player_handler.handle_admin_add_item(event, args):
             yield result
+
+    @filter.command(Commands.ADMIN_DISTRIBUTE_GROUP_ITEM)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_admin_distribute_group_item(self, event: AstrMessageEvent, args: str = ""):
+        """黑幕发放：向当前群所有已建档玩家发放道具（管理员）"""
+        async for result in self.player_handler.handle_admin_distribute_group_item(event, args):
+            yield result
+
+    @filter.command(Commands.ADMIN_BECOME_GOD)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_admin_become_god(self, event: AstrMessageEvent):
+        """专属成神指令"""
+        async for result in self.player_handler.handle_become_god(event):
+            yield result
     
     # ===== 悬赏系统命令 =====
     
@@ -1089,6 +1207,13 @@ class XiuxianV3Plugin(Star):
     async def cmd_abandon_bounty(self, event: AstrMessageEvent):
         """放弃悬赏"""
         async for result in self.bounty_handler.handle_abandon_bounty(event):
+            yield result
+
+    @filter.command(Commands.BOUNTY_MERIT_EXCHANGE)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_bounty_merit_exchange(self, event: AstrMessageEvent, target: str = ""):
+        """悬赏战功兑换暴击属性"""
+        async for result in self.bounty_handler.handle_merit_exchange(event, target):
             yield result
     
     # ===== 银行系统命令 =====
@@ -1133,6 +1258,13 @@ class XiuxianV3Plugin(Star):
     async def cmd_repay(self, event: AstrMessageEvent):
         """还款"""
         async for result in self.bank_handler.handle_repay(event):
+            yield result
+
+    @filter.command(Commands.TRANSFER)
+    @filter.custom_filter(XiuxianGroupWhitelistFilter)
+    async def cmd_transfer(self, event: AstrMessageEvent, args: str = ""):
+        """玩家间转账"""
+        async for result in self.transfer_handler.handle_transfer(event, args):
             yield result
     
     @filter.command(Commands.BREAKTHROUGH_LOAN)

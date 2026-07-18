@@ -41,6 +41,8 @@ class Boss:
     reference_power: int = 0  # 兼容旧存档，固定模板不再使用
     target_participants: int = 3  # 固定模板的标准讨伐人数
     damage_records: dict[str, int] = field(default_factory=dict)
+    target_records: dict[str, int] = field(default_factory=dict)
+    damage_taken_records: dict[str, int] = field(default_factory=dict)
     participant_names: dict[str, str] = field(default_factory=dict)
     last_regen_time: int = 0  # 上次结算Boss脱战回血的时间
     regen_remainder: float = 0.0  # 不足1点的回血余数
@@ -92,3 +94,5 @@ class BossBattleResult:
     exp_reward: int = 0  # 本次击杀结算中个人获得的修为
     reward_distribution: list[dict] = field(default_factory=list)
     next_spawn_time: int = 0
+    boss_promoted: bool = False
+    boss_promoted_level: str = ""

@@ -65,7 +65,7 @@ class StorageRingHandler:
             lines.append(f"\n{warning}\n")
         
         lines.append(f"\n{'=' * 28}\n")
-        lines.append(f"查看：查看物品 物品名\n")
+        lines.append(f"查看：小豆查看物品 物品名\n")
         lines.append(f"搜索：搜索物品 关键词\n")
         lines.append(f"升级：升级储物戒")
         
@@ -278,8 +278,8 @@ class StorageRingHandler:
         if not item_name or item_name.strip() == "":
             yield event.plain_result(
                 "请指定要查看的物品名称\n"
-                "用法：查看物品 <物品名>\n"
-                "示例：查看物品 筑基丹"
+                "用法：小豆查看物品 <物品名>\n"
+                "示例：小豆查看物品 筑基丹"
             )
             return
         
@@ -305,7 +305,7 @@ class StorageRingHandler:
                         f"  · {match['name']}"
                         f"（{match.get('type', '其他')}{rank}）\n"
                     )
-                lines.append("\n请使用：查看物品 <完整名称>")
+                lines.append("\n请使用：小豆查看物品 <完整名称>")
                 yield event.plain_result("".join(lines))
             else:
                 yield event.plain_result(
@@ -351,6 +351,9 @@ class StorageRingHandler:
             price = item_info['price']
             price_text = f"{price:,}" if isinstance(price, int) else str(price)
             lines.append(f"参考价：{price_text}灵石\n")
+
+        if item_info.get("weapon_category"):
+            lines.append(f"武器类别：{item_info['weapon_category']}\n")
 
         level_data = self.storage_ring_service.config_manager.get_level_data(
             player.cultivation_type.value

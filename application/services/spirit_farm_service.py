@@ -15,11 +15,11 @@ class SpiritFarmService:
     
     # 灵草配置 (wither_time: 成熟后枯萎时间，默认48小时)
     SPIRIT_HERBS = {
-        "灵草": {"grow_time": 3600, "exp_yield": 500, "gold_yield": 100, "wither_time": 172800},
-        "血灵草": {"grow_time": 7200, "exp_yield": 1500, "gold_yield": 300, "wither_time": 172800},
-        "冰心草": {"grow_time": 14400, "exp_yield": 4000, "gold_yield": 800, "wither_time": 172800},
-        "火焰花": {"grow_time": 28800, "exp_yield": 10000, "gold_yield": 2000, "wither_time": 172800},
-        "九叶灵芝": {"grow_time": 86400, "exp_yield": 30000, "gold_yield": 6000, "wither_time": 172800},
+        "灵草": {"grow_time": 60, "exp_yield": 500, "gold_yield": 100, "wither_time": 172800},
+        "血灵草": {"grow_time": 120, "exp_yield": 1500, "gold_yield": 300, "wither_time": 172800},
+        "冰心草": {"grow_time": 240, "exp_yield": 4000, "gold_yield": 800, "wither_time": 172800},
+        "火焰花": {"grow_time": 480, "exp_yield": 10000, "gold_yield": 2000, "wither_time": 172800},
+        "九叶灵芝": {"grow_time": 1440, "exp_yield": 30000, "gold_yield": 6000, "wither_time": 172800},
     }
     
     # 灵田等级配置
@@ -145,10 +145,10 @@ class SpiritFarmService:
         farm.crops.append(new_crop)
         self.spirit_farm_repo.update_crops(user_id, farm.crops)
         
-        grow_hours = herb_config["grow_time"] // 3600
+        grow_minutes = max(1, herb_config["grow_time"] // 60)
         return (
             f"🌱 成功种植【{herb_name}】！\n"
-            f"成熟时间：约 {grow_hours} 小时\n"
+            f"成熟时间：约 {grow_minutes} 分钟\n"
             f"当前种植：{len(farm.crops)}/{farm.get_max_slots()}"
         )
     

@@ -1,6 +1,11 @@
 """常量定义"""
 
+# 经济系统统一收款账号（市场税、商店消费、转账手续费）
+ECONOMY_OWNER_ID = "1269315543"
+
 class Commands:
+    # 经济系统
+    TRANSFER = "转账"
     """命令名称常量"""
     # 玩家系统
     CREATE_PLAYER = "我要修仙"
@@ -83,6 +88,7 @@ class Commands:
     
     # 历练系统
     ADVENTURE_INFO = "历练信息"
+    ADVENTURE_LIST = "历练列表"
     START_ADVENTURE = "开始历练"
     ADVENTURE_STATUS = "历练状态"
     COMPLETE_ADVENTURE = "完成历练"
@@ -90,6 +96,7 @@ class Commands:
     
     # 秘境系统
     RIFT_LIST = "秘境列表"
+    RIFT_INFO = "秘境信息"
     ENTER_RIFT = "探索秘境"
     FINISH_EXPLORATION = "完成探索"
     EXIT_RIFT = "退出秘境"
@@ -99,6 +106,10 @@ class Commands:
     BOSS_CODEX = "Boss图鉴"
     CHALLENGE_BOSS = "挑战Boss"
     SPAWN_BOSS = "生成Boss"
+    CREATE_BOSS_TEAM = "组队讨伐"
+    JOIN_BOSS_TEAM = "加入讨伐队"
+    BOSS_TEAM_INFO = "讨伐队信息"
+    START_BOSS_TEAM = "发起讨伐"
     
     # 悬赏系统
     BOUNTY_LIST = "悬赏令"
@@ -106,6 +117,7 @@ class Commands:
     BOUNTY_STATUS = "悬赏状态"
     COMPLETE_BOUNTY = "完成悬赏"
     ABANDON_BOUNTY = "放弃悬赏"
+    BOUNTY_MERIT_EXCHANGE = "悬赏战功兑换"
     
     # 银行系统
     BANK_INFO = "银行"
@@ -128,6 +140,7 @@ class Commands:
     FARM_INFO_ALT2 = "灵田信息"  # 备用命令（与帮助文档一致）
     FARM_INFO_ALT3 = "我的灵田"  # 备用命令（用户习惯）
     PLANT_HERB = "种植"  # 需求 10.2: /种植 [药草名称]
+    PLANT_HERB_X10 = "十倍种植"
     HARVEST = "收获"  # 需求 10.3: /收获
     SEED_SHOP = "种子商店"  # 需求 10.4: /种子商店
     BUY_SEED = "购买种子"  # 需求 10.6: /购买种子 [种子名称] [数量]
@@ -169,6 +182,8 @@ class Commands:
     ADMIN_ADD_EXPERIENCE = "增加修为"
     ADMIN_CHANGE_SECT_POSITION = "修改宗门岗位"
     ADMIN_ADD_ITEM = "增加道具"
+    ADMIN_DISTRIBUTE_GROUP_ITEM = "黑幕发放"
+    ADMIN_BECOME_GOD = "成神"
 
 
 class GameConstants:
@@ -223,32 +238,32 @@ class SpiritFieldConstants:
     # 成熟时间配置（秒）
     GROW_TIME_CONFIG = {
         "凡品": {
-            "min": 3600,      # 1小时
-            "max": 7200       # 2小时
+            "min": 60,
+            "max": 120
         },
         "珍品": {
-            "min": 21600,     # 6小时
-            "max": 43200      # 12小时
+            "min": 360,
+            "max": 720
         },
         "圣品": {
-            "min": 86400,     # 1天
-            "max": 259200     # 3天
+            "min": 1440,
+            "max": 4320
         },
         "帝品": {
-            "min": 432000,    # 5天
-            "max": 604800     # 7天
+            "min": 7200,
+            "max": 10080
         },
         "道品": {
-            "min": 864000,    # 10天
-            "max": 864000     # 10天
+            "min": 14400,
+            "max": 14400
         },
         "仙品": {
-            "min": 1296000,   # 15天
-            "max": 1296000    # 15天
+            "min": 21600,
+            "max": 21600
         },
         "神品": {
-            "min": 1728000,   # 20天
-            "max": 1728000    # 20天
+            "min": 28800,
+            "max": 28800
         }
     }
     

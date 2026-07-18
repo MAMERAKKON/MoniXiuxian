@@ -12,11 +12,28 @@ class BankHandler:
     
     def __init__(self, bank_service: BankService):
         self.bank_service = bank_service
+
+    async def _overdue_guard(self, user_id: str):
+        result = await self.bank_service.check_overdue_confrontation(str(user_id))
+        if not result:
+            return "", False
+        lines = ["⚔️ 银行逾期追债", "━━━━━━━━━━━━━━━"]
+        if result.get("log"):
+            lines.extend(result["log"])
+        lines.append("━━━━━━━━━━━━━━━")
+        lines.append(result.get("message", "逾期处理完成"))
+        stop = not result.get("won", False)
+        return "\n".join(lines), stop
     
     async def handle_bank_info(self, event: AstrMessageEvent) -> AsyncGenerator:
         """处理查看银行信息命令"""
         try:
             user_id = event.get_sender_id()
+            guard, stop = await self._overdue_guard(user_id)
+            if guard:
+                yield event.plain_result(guard)
+            if stop:
+                return
             
             # 获取银行信息
             info = self.bank_service.get_bank_info(user_id)
@@ -76,6 +93,11 @@ class BankHandler:
         """处理存款命令"""
         try:
             user_id = event.get_sender_id()
+            guard, stop = await self._overdue_guard(user_id)
+            if guard:
+                yield event.plain_result(guard)
+            if stop:
+                return
             
             # 解析金额
             if not amount:
@@ -100,6 +122,11 @@ class BankHandler:
         """处理取款命令"""
         try:
             user_id = event.get_sender_id()
+            guard, stop = await self._overdue_guard(user_id)
+            if guard:
+                yield event.plain_result(guard)
+            if stop:
+                return
             
             # 解析金额
             if not amount:
@@ -124,6 +151,11 @@ class BankHandler:
         """处理领取利息命令"""
         try:
             user_id = event.get_sender_id()
+            guard, stop = await self._overdue_guard(user_id)
+            if guard:
+                yield event.plain_result(guard)
+            if stop:
+                return
             result = self.bank_service.claim_interest(user_id)
             yield event.plain_result(f"✅ {result}")
             
@@ -136,6 +168,11 @@ class BankHandler:
         """处理贷款命令"""
         try:
             user_id = event.get_sender_id()
+            guard, stop = await self._overdue_guard(user_id)
+            if guard:
+                yield event.plain_result(guard)
+            if stop:
+                return
             
             # 如果没有输入金额，显示帮助
             if not amount:
@@ -173,6 +210,11 @@ class BankHandler:
         """处理还款命令"""
         try:
             user_id = event.get_sender_id()
+            guard, stop = await self._overdue_guard(user_id)
+            if guard:
+                yield event.plain_result(guard)
+            if stop:
+                return
             result = self.bank_service.repay(user_id)
             yield event.plain_result(result)
             
@@ -185,6 +227,11 @@ class BankHandler:
         """处理突破贷款命令"""
         try:
             user_id = event.get_sender_id()
+            guard, stop = await self._overdue_guard(user_id)
+            if guard:
+                yield event.plain_result(guard)
+            if stop:
+                return
             
             # 如果没有输入金额，显示帮助
             if not amount:

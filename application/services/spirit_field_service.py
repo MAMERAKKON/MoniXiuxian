@@ -141,7 +141,7 @@ class SpiritFieldService:
         
         return spirit_field
     
-    def plant_herb(self, user_id: str, herb_name: str, quantity: int = 1) -> str:
+    def plant_herb(self, user_id: str, herb_name: str, quantity: int = 1, batch_multiplier: int = 1) -> str:
         """
         种植药草（支持批量）
         
@@ -161,6 +161,7 @@ class SpiritFieldService:
         """
         # 获取或创建灵田
         spirit_field = self.get_or_create_spirit_field(user_id)
+        batch_multiplier = max(1, int(batch_multiplier))
         
         # 检查药草是否可种植
         if herb_name not in self.plantable_herbs:
@@ -198,7 +199,7 @@ class SpiritFieldService:
                 return f"❌ 你的储物袋中没有【{seed_name}】"
             
             # 实际种植数量 = min(请求数量, 种子数量, 空闲田地数量)
-            actual_quantity = min(quantity, seed_count, available_count)
+            actual_quantity = min(quantity, seed_count // batch_multiplier, available_count)
             need_auto_provide = 0
         
         # 批量种植
@@ -210,7 +211,7 @@ class SpiritFieldService:
                 break
             
             plot = available_plots[i]
-            grow_time = self._calculate_grow_time(herb_rank)
+            grow_time = self._calculate_grow_time(herb_rank) * batch_multiplier
             mature_time = current_time + grow_time
             
             plot.plant(
@@ -218,14 +219,15 @@ class SpiritFieldService:
                 herb_name=herb_name,
                 herb_rank=herb_rank,
                 plant_time=current_time,
-                mature_time=mature_time
+                mature_time=mature_time,
+                batch_quantity=batch_multiplier
             )
             planted_count += 1
         
         # 扣除种子（如果不是解锁状态）
         if not is_unlocked and planted_count > 0:
             items = self.storage_ring_repo.get_storage_ring_items(user_id)
-            items[seed_name] -= planted_count
+            items[seed_name] -= planted_count * batch_multiplier
             if items[seed_name] <= 0:
                 del items[seed_name]
             self.storage_ring_repo.set_storage_ring_items(user_id, items)
@@ -236,8 +238,12 @@ class SpiritFieldService:
         # 构造返回消息
         occupied = len(spirit_field.get_occupied_plots())
         qty_display = f" x{planted_count}" if planted_count > 1 else ""
+        batch_display = (
+            f"（每块田{batch_multiplier}倍种植，产量和生长时间均为{batch_multiplier}倍）"
+            if batch_multiplier > 1 else ""
+        )
         
-        msg_parts = [f"🌱 成功种植【{herb_name}{qty_display}】！"]
+        msg_parts = [f"🌱 成功种植【{herb_name}{qty_display}】！{batch_display}"]
         
         if is_unlocked:
             msg_parts.append(f"✨ 【{seed_name}】已解锁，自动给予种子进行种植")
@@ -382,7 +388,8 @@ class SpiritFieldService:
         harvested_herbs = {}
         for plot in mature_plots:
             # 生成收获数量(2-4个随机)
-            harvest_amount = self._generate_harvest_amount()
+            batch_quantity = getattr(plot.planted_herb, "batch_quantity", 1)
+            harvest_amount = self._generate_harvest_amount() * batch_quantity
             
             # 收获药草
             herb = plot.harvest()
@@ -400,7 +407,6 @@ class SpiritFieldService:
                 items[herb_name] += amount
             else:
                 items[herb_name] = amount
-        
         self.storage_ring_repo.set_storage_ring_items(user_id, items)
         
         # 保存灵田

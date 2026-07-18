@@ -10,15 +10,17 @@ from ..enums import ItemType, ItemRarity
 
 @dataclass
 class EquipmentStats:
+    speed: int = 0
+    target_weight: float = 0.0  # Boss被选中权重额外值（预留）
     """装备属性加成"""
-    magic_damage: int = 0  # 法攻
-    physical_damage: int = 0  # 物攻
+    magic_damage: int = 0  # 法伤（法术攻击）
+    physical_damage: int = 0  # 物伤（物理攻击）
     magic_defense: int = 0  # 法防
     physical_defense: int = 0  # 物防
-    mental_power: int = 0  # 神念
+    mental_power: int = 0  # 精神力
     max_hp: int = 0  # 气血上限
     spiritual_qi: int = 0  # 灵气
-    exp_multiplier: float = 0.0  # 修炼倍率
+    exp_multiplier: float = 0.0  # 修炼效率
     
     # 旧版兼容字段
     attack: int = 0  # 攻击力（旧版）
@@ -27,6 +29,8 @@ class EquipmentStats:
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
         return {
+            "speed": self.speed,
+            "target_weight": self.target_weight,
             "magic_damage": self.magic_damage,
             "physical_damage": self.physical_damage,
             "magic_defense": self.magic_defense,
@@ -43,6 +47,8 @@ class EquipmentStats:
     def from_dict(cls, data: Dict[str, Any]) -> "EquipmentStats":
         """从字典创建"""
         return cls(
+            speed=data.get("speed", 0),
+            target_weight=data.get("target_weight", 0.0),
             magic_damage=data.get("magic_damage", 0),
             physical_damage=data.get("physical_damage", 0),
             magic_defense=data.get("magic_defense", 0),
@@ -133,7 +139,7 @@ class Equipment:
         stats_data = {}
         
         # 新版属性字段
-        for field in ["magic_damage", "physical_damage", "magic_defense", 
+        for field in ["magic_damage", "physical_damage", "magic_defense", "speed", "target_weight",
                      "physical_defense", "mental_power", "max_hp", 
                      "spiritual_qi", "exp_multiplier"]:
             if field in data:
@@ -193,6 +199,8 @@ class EquippedItems:
                 total.magic_defense += equipment.stats.magic_defense
                 total.physical_defense += equipment.stats.physical_defense
                 total.mental_power += equipment.stats.mental_power
+                total.speed += equipment.stats.speed
+                total.target_weight += equipment.stats.target_weight
                 total.max_hp += equipment.stats.max_hp
                 total.spiritual_qi += equipment.stats.spiritual_qi
                 total.exp_multiplier += equipment.stats.exp_multiplier

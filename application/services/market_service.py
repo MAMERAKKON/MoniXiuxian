@@ -9,6 +9,7 @@ from typing import Optional, Tuple, List, Dict, Any
 from pathlib import Path
 
 from ...domain.models.market import MarketListing
+from ...core.constants import ECONOMY_OWNER_ID
 from ...domain.models.player import Player
 from ...infrastructure.repositories.market_repo import MarketRepository
 from ...infrastructure.repositories.player_repo import PlayerRepository
@@ -199,6 +200,9 @@ class MarketService:
         # 转账给卖家
         seller.add_gold(seller_revenue)
         self.player_repo.save(seller)
+        # 市场税不再凭空消失，汇入经济系统指定账号。
+        if tax > 0:
+            self.player_repo.add_gold(ECONOMY_OWNER_ID, tax)
         
         # 将物品添加到买家储物戒
         self.storage_ring_repo.add_item(buyer_id, listing.item_name, buy_qty)

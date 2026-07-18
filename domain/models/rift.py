@@ -44,3 +44,5 @@ class RiftResult:
     event_description: str
     death_occurred: bool = False  # 是否发生死亡
     death_penalty: Optional[Dict[str, int]] = None  # 死亡惩罚 {"exp_lost": 1000, "gold_lost": 500}
+    recovered_exp: int = 0  # 取回的上一次同秘境死亡修为
+    recovered_gold: int = 0  # 取回的上一次同秘境死亡灵石

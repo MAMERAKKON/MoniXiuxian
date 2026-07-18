@@ -16,9 +16,14 @@ from ...infrastructure.repositories.player_repo import PlayerRepository
 from ...infrastructure.repositories.storage_ring_repo import StorageRingRepository
 from ...core.config import ConfigManager
 from ...core.exceptions import BusinessException
+from ...core.constants import ECONOMY_OWNER_ID
 
 
 class ShopService:
+    # 丹阁固定供应的基础回血丹，库存视为无限。
+    INFINITE_HEALING_PILL_ID = "1004"
+    INFINITE_HEALING_PILL_STOCK = 1_000_000_000
+
     """商店服务"""
     
     # 物品类型标签映射
@@ -244,7 +249,40 @@ class ShopService:
         stock_divisor = 100
         stock = max(1, (weight + stock_divisor - 1) // stock_divisor)
         return stock
-    
+
+    def _get_infinite_healing_pill_shop_item(self) -> Optional[Dict]:
+        """构造丹阁固定出售的二品回血丹栏位。"""
+        items_config = self.config_manager.get_config("items") or {}
+        pill = items_config.get(self.INFINITE_HEALING_PILL_ID)
+        if not pill or pill.get("name") != "二品回春丹":
+            return None
+        return {
+            "id": self.INFINITE_HEALING_PILL_ID,
+            "name": pill["name"],
+            "type": self._classify_pill_type(pill),
+            "rank": pill.get("rank", "凡品"),
+            "original_price": int(pill.get("price", 0)),
+            "discount": 1.0,
+            "price": int(pill.get("price", 0)),
+            "stock": self.INFINITE_HEALING_PILL_STOCK,
+            "data": pill,
+        }
+
+    def _ensure_infinite_healing_pill(self, shop_id: str, items_data: List[Dict]) -> List[Dict]:
+        """确保丹阁始终有一个无限供应的二品回血丹栏位。"""
+        if shop_id != "pill_pavilion":
+            return items_data
+        fixed_item = self._get_infinite_healing_pill_shop_item()
+        if not fixed_item:
+            return items_data
+        filtered = [
+            item for item in items_data
+            if str(item.get("id")) != self.INFINITE_HEALING_PILL_ID
+            and item.get("name") != fixed_item["name"]
+        ]
+        filtered.append(fixed_item)
+        return filtered
+
     def generate_shop_items(self, item_filter=None, count: int = 10) -> List[Dict]:
         """
         生成商店物品列表
@@ -350,6 +388,13 @@ class ShopService:
             items_data = self._migrate_shop_items(items_data)
         
         # 构建商店对象
+        # 丹阁追加固定的无限回血丹栏位，并同步保存，避免旧商店数据遗漏。
+        if shop_id == "pill_pavilion":
+            normalized_items = self._ensure_infinite_healing_pill(shop_id, items_data)
+            if normalized_items != items_data:
+                items_data = normalized_items
+                self.shop_repo.update_shop_data(shop_id, last_refresh, items_data)
+
         shop_items = [
             ShopItem(
                 id=item['id'],
@@ -404,7 +449,10 @@ class ShopService:
                 discount_text = f" [+{int((item.discount - 1.0) * 100)}%]"
             
             # 库存标签
-            stock_text = f"库存紧张:{item.stock}" if item.stock <= 3 else f"库存:{item.stock}"
+            if item.stock >= self.INFINITE_HEALING_PILL_STOCK:
+                stock_text = "库存:无限"
+            else:
+                stock_text = f"库存紧张:{item.stock}" if item.stock <= 3 else f"库存:{item.stock}"
             
             # 获取物品效果描述
             effect_desc = self._get_item_effect_short(item)
@@ -478,15 +526,15 @@ class ShopService:
         if data.get('max_hp') and not data.get('effect'):  # 避免重复显示
             effects.append(f"气血上限+{data['max_hp']}")
         if data.get('exp_multiplier'):
-            effects.append(f"修炼倍率+{int(data['exp_multiplier']*100)}%")
+            effects.append(f"修炼效率+{int(data['exp_multiplier']*100)}%")
         
         # 旧版装备效果
         if data.get('equip_effects'):
             equip_effects = data['equip_effects']
             if equip_effects.get('attack'):
-                effects.append(f"攻击+{equip_effects['attack']}")
+                effects.append(f"攻击力+{equip_effects['attack']}")
             if equip_effects.get('defense'):
-                effects.append(f"防御+{equip_effects['defense']}")
+                effects.append(f"防御力+{equip_effects['defense']}")
         
         return "、".join(effects) if effects else ""
     
@@ -574,6 +622,9 @@ class ShopService:
         
         # 扣除灵石
         player.gold -= total_price
+        # 商店消费进入经济系统指定账号。
+        if total_price > 0:
+            self.player_repo.add_gold(ECONOMY_OWNER_ID, total_price)
         
         # 根据物品类型处理
         item_type = target_item['type']

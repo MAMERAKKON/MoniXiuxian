@@ -83,7 +83,8 @@ class PlayerFormatter:
         combat_power: int,
         sect_name: str = "无宗门",
         position_name: str = "散修",
-        equipment_bonuses = None
+        equipment_bonuses = None,
+        inheritance_info: dict = None
     ) -> str:
         """
         格式化玩家信息
@@ -119,6 +120,23 @@ class PlayerFormatter:
         )
         
         # 计算总属性（基础属性 + 装备加成）
+        pill_totals = {}
+        for pill_effect in (getattr(player, "active_pill_effects", {}) or {}).values():
+            if isinstance(pill_effect, dict):
+                for key, value in pill_effect.items():
+                    pill_totals[key] = pill_totals.get(key, 0) + int(value or 0)
+        pill_attack = pill_totals.get("add_attack", 0)
+        pill_defense = pill_totals.get("add_defense", 0)
+        pill_mental = pill_totals.get("add_mental_power", 0)
+        is_spiritual = player.cultivation_type == CultivationType.SPIRITUAL
+        pill_magic_attack = pill_attack if is_spiritual else 0
+        pill_physical_attack = pill_attack if not is_spiritual else 0
+        pill_magic_defense = pill_defense if is_spiritual else 0
+        pill_physical_defense = pill_defense if not is_spiritual else 0
+
+        def detail(total, base, equipment, pill):
+            return f"{total:,}（基础{base:,}+装备{equipment:,}+丹药{pill:,}）"
+
         if equipment_bonuses:
             total_magic_damage = player.magic_damage + equipment_bonuses.magic_damage
             total_physical_damage = player.physical_damage + equipment_bonuses.physical_damage
@@ -131,7 +149,67 @@ class PlayerFormatter:
             total_magic_defense = player.magic_defense
             total_physical_defense = player.physical_defense
             total_mental_power = player.mental_power
+
+        speed = player.calculate_speed(
+            getattr(equipment_bonuses, "speed", 0) if equipment_bonuses else 0
+        )
+
+        permanent = (inheritance_info or {}).get("permanent", {})
+        crit_rate = min(100.0, max(0.0, float(permanent.get("crit_rate_percent", 0.0)) * 100.0))
+        crit_damage_bonus = max(0.0, float(permanent.get("crit_damage_percent", 0.0)))
+        crit_damage = 150.0 + crit_damage_bonus * 100.0
+        penetration = min(30.0, crit_rate * 0.15 + (crit_damage - 150.0) * 0.10) if is_spiritual else 0.0
+        boss_weight = (1.0 if is_spiritual else 2.0) + (
+            float(getattr(equipment_bonuses, "target_weight", 0.0) or 0.0)
+            if equipment_bonuses else 0.0
+        )
+        total_max_resource = (
+            (player.max_spiritual_qi if is_spiritual else player.max_blood_qi)
+            + (getattr(equipment_bonuses, "max_hp", 0) if equipment_bonuses else 0)
+        )
+        total_current_resource = min(
+            total_max_resource,
+            (player.spiritual_qi if is_spiritual else player.blood_qi)
+            + (getattr(equipment_bonuses, "max_hp", 0) if equipment_bonuses else 0),
+        )
+        root_multiplier = float(getattr(equipment_bonuses, "root_multiplier", 1.0) or 1.0)
+        technique_land_bonus = float(getattr(equipment_bonuses, "technique_land_bonus", 0.0) or 0.0)
+        eq = lambda name: int(getattr(equipment_bonuses, name, 0) or 0) if equipment_bonuses else 0
+        eq_float = lambda name: float(getattr(equipment_bonuses, name, 0.0) or 0.0) if equipment_bonuses else 0.0
+        attack_label = "法伤" if is_spiritual else "物伤"
+        attack_value = total_magic_damage if is_spiritual else total_physical_damage
+        attack_equipment = eq("magic_damage") if is_spiritual else eq("physical_damage")
+        attack_pill = pill_magic_attack if is_spiritual else pill_physical_attack
+        defense_label = "法防" if is_spiritual else "物防"
+        defense_value = total_magic_defense if is_spiritual else total_physical_defense
+        defense_equipment = eq("magic_defense") if is_spiritual else eq("physical_defense")
+        defense_pill = pill_magic_defense if is_spiritual else pill_physical_defense
+        hp_pill = pill_totals.get("add_max_hp", 0) + pill_totals.get("add_spiritual_power", 0)
+        hp_percent = float(permanent.get("hp_percent", 0.0) or 0.0)
+        hp_flat = int(permanent.get("hp_flat", 0) or 0)
+        attack_percent = float(permanent.get("attack_percent", 0.0) or 0.0)
+        attack_flat = int(permanent.get("attack_flat", 0) or 0)
+        defense_percent = float(permanent.get("defense_percent", 0.0) or 0.0)
+        defense_flat = int(permanent.get("defense_flat", 0) or 0)
+        mp_percent = float(permanent.get("mp_percent", 0.0) or 0.0)
+        mp_flat = int(permanent.get("mp_flat", 0) or 0)
+        base_resource = max(0, int(((player.max_spiritual_qi if is_spiritual else player.max_blood_qi) - hp_pill - hp_flat) / max(1.0, 1.0 + hp_percent)))
+        base_mp = max(0, int((player.mental_power - pill_mental - mp_flat) / max(1.0, 1.0 + mp_percent)))
+        base_attack = max(0, int((attack_value - attack_equipment - attack_pill - attack_flat) / max(1.0, 1.0 + attack_percent)))
+        base_defense = max(0, int((defense_value - defense_equipment - defense_pill - defense_flat) / max(1.0, 1.0 + defense_percent)))
+        base_magic_attack = max(0, int((player.magic_damage - pill_magic_attack - attack_flat) / max(1.0, 1.0 + attack_percent)))
+        base_physical_attack = max(0, int((player.physical_damage - pill_physical_attack - attack_flat) / max(1.0, 1.0 + attack_percent)))
+        base_magic_defense = max(0, int((player.magic_defense - pill_magic_defense - defense_flat) / max(1.0, 1.0 + defense_percent)))
+        base_physical_defense = max(0, int((player.physical_defense - pill_physical_defense - defense_flat) / max(1.0, 1.0 + defense_percent)))
+        experience_multiplier = root_multiplier * (1.0 + technique_land_bonus)
+        exp_display_percent = (experience_multiplier - 1.0) * 100.0
         
+        exp_display = (
+            "已达最高境界"
+            if int(required_exp or 0) <= 0
+            else f"{int(player.experience):,}/{int(required_exp):,}"
+        )
+
         msg = (
             f"📋 道友 {dao_hao} 的信息\n"
             f"━━━━━━━━━━━━━━━\n"
@@ -139,22 +217,25 @@ class PlayerFormatter:
             f"【基本信息】\n"
             f"  道号：{dao_hao}\n"
             f"  境界：{level_name}\n"
-            f"  修为：{int(player.experience):,}/{int(required_exp):,}\n"
+            f"  修为：{exp_display}\n"
             f"  灵石：{player.gold:,}\n"
             f"  战力：{combat_power:,}\n"
             f"  灵根：{player.spiritual_root}\n"
             f"  突破加成：{breakthrough_rate}\n"
+            f"  储物戒：{player.storage_ring}（{sum(player.storage_ring_items.values())} 件）\n"
             f"\n"
             f"【修炼属性】\n"
             f"  修炼方式：{player.cultivation_type.value}\n"
             f"  状态：{player.state.value}\n"
             f"  寿命：{player.lifespan}\n"
-            f"  精神力：{total_mental_power}"
+            f"  精神力：{total_mental_power}\n"
+            f"  速度：{speed:,.0f}\n"
+            f"  炼丹等级：{player.alchemy_level}（经验 {player.alchemy_exp:,}）"
         )
         
         # 显示装备加成
         if equipment_bonuses and equipment_bonuses.mental_power > 0:
-            msg += f"({player.mental_power}+{equipment_bonuses.mental_power})"
+            msg += f"（基础{player.mental_power - pill_mental:,}+装备{equipment_bonuses.mental_power:,}+丹药{pill_mental:,}）"
         msg += "\n"
         
         # 根据修炼类型添加不同属性
@@ -190,20 +271,93 @@ class PlayerFormatter:
             msg += "\n"
         
         msg += (
+            "\n【最终战斗属性】\n"
+            f"  {'灵气' if is_spiritual else '气血'}：{total_current_resource:,}/{total_max_resource:,}\n"
+            f"  {'灵气' if is_spiritual else '气血'}构成：{base_resource:,}×(1+永久传承{hp_percent:.1%})+固定{hp_flat:,}+装备{eq('max_hp'):,}+丹药{hp_pill:,}={total_max_resource:,}\n"
+            f"  最终法伤：{total_magic_damage:,}\n"
+            f"  最终物伤：{total_physical_damage:,}\n"
+            f"  最终法防：{total_magic_defense:,}\n"
+            f"  最终物防：{total_physical_defense:,}\n"
+            f"  战斗MP（精神力）：{total_mental_power:,}\n"
+            f"  精神力构成：{base_mp:,}×(1+永久传承{mp_percent:.1%})+固定{mp_flat:,}+装备{eq('mental_power'):,}+丹药{pill_mental:,}={total_mental_power:,}\n"
+            f"  法伤构成：{base_magic_attack:,}×(1+永久传承{attack_percent:.1%})+固定{attack_flat:,}+装备{eq('magic_damage'):,}+丹药{pill_magic_attack:,}={total_magic_damage:,}\n"
+            f"  物伤构成：{base_physical_attack:,}×(1+永久传承{attack_percent:.1%})+固定{attack_flat:,}+装备{eq('physical_damage'):,}+丹药{pill_physical_attack:,}={total_physical_damage:,}\n"
+            f"  法防构成：{base_magic_defense:,}×(1+永久传承{defense_percent:.1%})+固定{defense_flat:,}+装备{eq('magic_defense'):,}+丹药{pill_magic_defense:,}={total_magic_defense:,}\n"
+            f"  物防构成：{base_physical_defense:,}×(1+永久传承{defense_percent:.1%})+固定{defense_flat:,}+装备{eq('physical_defense'):,}+丹药{pill_physical_defense:,}={total_physical_defense:,}\n"
+            f"  速度：{speed:,.0f}\n"
+            f"  暴击率：{crit_rate:.1f}%\n"
+            f"  暴击伤害：{crit_damage:.1f}%\n"
+            f"  双属性穿透：{penetration:.2f}%\n"
+            f"  Boss吸引权重：{boss_weight:.2f}\n"
+            f"  修为获取倍率：灵根{root_multiplier:.2f} × 心得/功法与洞天{1.0 + technique_land_bonus:.4f} = {experience_multiplier:.4f}（+{exp_display_percent:.1f}%）\n"
             f"\n"
             f"【装备信息】\n"
             f"  主修功法：{technique_name}\n"
             f"  修炼心得：{cultivation_technique_name}\n"
-            f"  全行为修为加成：+{exp_bonus_percent:.0f}%\n"
+            f"  修为倍率构成：灵根×心得/功法×洞天（当前显示为全局预览）\n"
+            f"  装备属性合计：法伤+{eq('magic_damage')}、物伤+{eq('physical_damage')}、法防+{eq('magic_defense')}、物防+{eq('physical_defense')}、精神力+{eq('mental_power')}、气血上限+{eq('max_hp')}、速度+{eq('speed')}、Boss吸引权重{eq_float('target_weight'):+.2f}\n"
             f"  法器：{weapon_name}\n"
             f"  防具：{armor_name}\n"
             f"\n"
             f"【宗门信息】\n"
             f"  所在宗门：{sect_name}\n"
             f"  宗门职位：{position_name}\n"
+            f"  宗门贡献：{player.sect_contribution:,}\n"
             f"━━━━━━━━━━━━━━━"
         )
+
+        inheritance_info = inheritance_info or {}
+
+        def format_inheritance(values: dict) -> str:
+            labels = {
+                "hp_percent": "生命百分比",
+                "attack_percent": "攻击百分比",
+                "defense_percent": "防御百分比",
+                "crit_rate_percent": "暴击率",
+                "crit_damage_percent": "暴击伤害",
+                "hp_flat": "生命固定值",
+                "attack_flat": "攻击固定值",
+                "mp_flat": "灵气/气血固定值",
+                "defense_flat": "防御固定值",
+            }
+            formatted = []
+            for key, value in values.items():
+                label = labels.get(key, key)
+                if key.endswith("_percent"):
+                    formatted.append(f"{label}+{float(value):.1%}")
+                else:
+                    formatted.append(f"{label}+{float(value):,.2f}")
+            return "\n    ".join(formatted) or "无"
+
+        msg += (
+            "\n\n【传承信息】\n"
+            f"  转世次数：{inheritance_info.get('count', 0)}\n"
+            "  永久传承（已结算）：\n"
+            f"    {format_inheritance(inheritance_info.get('permanent', {}))}\n"
+            "  本世传承（待轮回结算）：\n"
+            f"    {format_inheritance(inheritance_info.get('current', {}))}\n"
+            f"  当前境界预计轮回奖励：{inheritance_info.get('reward_tier', '无')}\n"
+            f"    {format_inheritance(inheritance_info.get('reward', {}))}\n"
+            f"  悬赏战功：{inheritance_info.get('bounty_merit', 0)}点"
+        )
         
+        if getattr(player, "active_pill_effects", None):
+            msg += "\n\n【当前丹药增益】\n"
+            for pill_name, effects in player.active_pill_effects.items():
+                details = []
+                for key, value in effects.items():
+                    label = {
+                        "add_attack": "攻击",
+                        "add_defense": "防御",
+                        "add_max_hp": "气血/灵气上限",
+                        "add_spiritual_power": "气血/灵气上限",
+                        "add_mental_power": "精神力",
+                        "add_breakthrough_bonus": "突破成功率",
+                    }.get(key, key)
+                    amount = float(value) * 100 if key == "add_breakthrough_bonus" else value
+                    suffix = "%" if key == "add_breakthrough_bonus" else ""
+                    details.append(f"{label}+{amount:g}{suffix}")
+                msg += f"  {pill_name}：" + "、".join(details) + "（战斗后清除）\n"
         return msg
     
     @staticmethod
